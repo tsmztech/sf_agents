@@ -27,55 +27,187 @@ st.markdown("""
         background-color: #f8f9fa;
     }
     
-    .user-message {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        padding: 12px 16px;
-        border-radius: 18px 18px 4px 18px;
-        margin: 10px 0;
-        margin-left: 25%;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        animation: slideIn 0.3s ease-out;
-    }
-    
-    .agent-message {
-        background: white;
-        color: #333;
-        padding: 12px 16px;
-        border-radius: 18px 18px 18px 4px;
-        margin: 10px 0;
-        margin-right: 25%;
-        border: 1px solid #e1e8ed;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        animation: slideIn 0.3s ease-out;
-    }
-    
-    .expert-message {
-        background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
-        color: #333;
-        padding: 12px 16px;
-        border-radius: 18px 18px 18px 4px;
-        margin: 10px 0;
-        margin-right: 25%;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        animation: slideIn 0.3s ease-out;
-    }
-    
-    .agent-status {
-        background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-        color: white;
-        padding: 8px 12px;
-        margin: 5px 0;
-        border-radius: 15px;
-        font-size: 0.9rem;
-        animation: pulse 2s infinite;
-        margin-right: 30%;
-    }
-    
-    .agent-status-completed {
-        background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
-        animation: none;
-    }
+            /* Remove excessive spacing */
+        .main .block-container {
+            padding-top: 1rem !important;
+            padding-bottom: 1rem !important;
+        }
+        
+        /* Chat Container */
+        .chat-container {
+            min-height: auto;
+            overflow-y: auto;
+            padding: 10px 20px;
+            padding-bottom: 120px;
+            background: transparent;
+        }
+
+        /* User Messages - Right Aligned */
+        .user-message {
+            display: flex;
+            justify-content: flex-end;
+            margin: 12px 0;
+        }
+
+        .user-message .message-bubble {
+            background: linear-gradient(135deg, #6c7293 0%, #4a4f6b 100%);
+            color: white;
+            padding: 12px 16px;
+            border-radius: 18px 18px 4px 18px;
+            max-width: 70%;
+            word-wrap: break-word;
+            box-shadow: 0 2px 12px rgba(108, 114, 147, 0.3);
+            animation: slideInRight 0.3s ease-out;
+        }
+
+        /* All System Messages - Left Aligned with Single Color */
+        .agent-message,
+        .expert-message,
+        .technical-message,
+        .dependency-message {
+            display: flex;
+            justify-content: flex-start;
+            margin: 12px 0;
+        }
+
+        .agent-message .message-bubble,
+        .expert-message .message-bubble,
+        .technical-message .message-bubble,
+        .dependency-message .message-bubble {
+            background: #7c3aed;
+            color: white;
+            padding: 12px 16px;
+            border-radius: 18px 18px 18px 4px;
+            max-width: 70%;
+            word-wrap: break-word;
+            box-shadow: 0 2px 12px rgba(124, 58, 237, 0.3);
+            animation: slideInLeft 0.3s ease-out;
+        }
+
+        /* Agent Status Messages */
+        .agent-status {
+            display: flex;
+            justify-content: flex-start;
+            margin: 8px 0;
+        }
+
+        .agent-status .message-bubble {
+            background: rgba(108, 117, 125, 0.8);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 15px;
+            font-size: 0.9rem;
+            animation: pulse 2s infinite;
+            max-width: 60%;
+        }
+
+        .agent-status-completed .message-bubble {
+            background: #10b981;
+            animation: none;
+        }
+
+        /* Fixed Footer Input */
+        .chat-input-footer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            border-top: 2px solid #e9ecef;
+            padding: 15px 20px;
+            z-index: 1000;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+        }
+
+        .chat-input-container {
+            max-width: 800px;
+            margin: 0 auto;
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+        }
+
+        .chat-input-box {
+            flex: 1;
+            min-height: 44px;
+            max-height: 120px;
+            padding: 12px 16px;
+            border: 2px solid #e9ecef;
+            border-radius: 22px;
+            font-size: 16px;
+            resize: none;
+            outline: none;
+            transition: border-color 0.3s ease;
+            background: #f8f9fa;
+        }
+
+        .chat-input-box:focus {
+            border-color: #667eea;
+            background: white;
+        }
+
+        .chat-send-button {
+            min-width: 44px;
+            height: 44px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 22px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.2s ease;
+            font-weight: 600;
+            padding: 0 16px;
+        }
+
+        .chat-send-button:hover {
+            transform: scale(1.05);
+        }
+
+        .chat-send-button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Animations */
+        @keyframes slideInRight {
+            from {
+                opacity: 0;
+                transform: translateX(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        @keyframes slideInLeft {
+            from {
+                opacity: 0;
+                transform: translateX(-30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        /* Agent Labels */
+        .agent-label {
+            font-size: 0.8rem;
+            color: #6c757d;
+            margin-bottom: 4px;
+            padding-left: 16px;
+        }
+
+        .user-label {
+            text-align: right;
+            padding-right: 16px;
+            color: #6c757d;
+        }
     
     .status-badge {
         padding: 5px 10px;
@@ -211,26 +343,37 @@ def get_agent_status_display() -> str:
         return "🤖 **Master Agent** is processing your request..."
 
 def display_conversation_history():
-    """Display the conversation history with enhanced chat bubble styling and agent status."""
+    """Display the conversation history with modern chat bubble styling."""
     if not st.session_state.conversation_history:
+        # Display welcome message in system message style
         st.markdown('''
-            <div style="text-align: center; padding: 2rem; color: #666;">
-                <h3>👋 Welcome to Salesforce AI Agent System</h3>
-                <p>Start by describing your business requirement and I'll help you create a complete Salesforce implementation plan.</p>
+            <div class="agent-label">🤖 Master Agent • Welcome</div>
+            <div class="agent-message">
+                <div class="message-bubble">
+                    <strong>👋 Welcome to Salesforce AI Agent System</strong><br><br>
+                    I'll help you transform your business requirements into detailed Salesforce implementation plans.<br><br>
+                    <strong>How it works:</strong><br>
+                    • Describe your requirement in natural language<br>
+                    • I'll analyze and suggest enhancements<br>
+                    • You choose what to include<br>
+                    • Get a comprehensive implementation plan<br><br>
+                    Ready to get started? Tell me about your business requirement! 🚀
+                </div>
             </div>
         ''', unsafe_allow_html=True)
         return
-    
-    st.markdown('<div class="chat-container">', unsafe_allow_html=True)
     
     for i, message in enumerate(st.session_state.conversation_history):
         timestamp = datetime.fromisoformat(message['timestamp']).strftime("%H:%M")
         
         if message['role'] == 'user':
+            # User message - right aligned
             st.markdown(f'''
+                <div class="user-label">You • {timestamp}</div>
                 <div class="user-message">
-                    <strong>You ({timestamp}):</strong><br>
-                    {message['content']}
+                    <div class="message-bubble">
+                        {message['content']}
+                    </div>
                 </div>
             ''', unsafe_allow_html=True)
             
@@ -244,44 +387,57 @@ def display_conversation_history():
                     duration = (agent_time - user_time).total_seconds()
                     
                     # Determine which agent processed this
-                    agent_icon = "🤖"
-                    agent_name = "Master Agent"
-                    if next_message.get('message_type') == 'expert_suggestions':
-                        agent_icon = "🎯"
-                        agent_name = "Expert Agent"
-                    elif next_message.get('message_type') == 'expert_analysis':
-                        agent_icon = "🔍"
-                        agent_name = "Expert Agent"
+                    agent_info = get_agent_info_from_message(next_message)
                     
                     st.markdown(f'''
                         <div class="agent-status agent-status-completed">
-                            {agent_icon} <strong>{agent_name}</strong> completed analysis (thought for {duration:.1f}s)
+                            <div class="message-bubble">
+                                {agent_info['icon']} {agent_info['name']} completed analysis (thought for {duration:.1f}s)
+                            </div>
                         </div>
                     ''', unsafe_allow_html=True)
         
         elif message['role'] == 'agent':
-            # Determine which agent sent this message based on message type
-            message_class = "agent-message"
-            agent_icon = "🤖"
-            agent_name = "Master Agent"
-            
-            if message.get('message_type') == 'expert_suggestions':
-                message_class = "expert-message"
-                agent_icon = "🎯"
-                agent_name = "Expert Agent"
-            elif message.get('message_type') == 'expert_analysis':
-                message_class = "expert-message"
-                agent_icon = "🔍"
-                agent_name = "Expert Agent"
+            # Agent message - left aligned
+            agent_info = get_agent_info_from_message(message)
             
             st.markdown(f'''
-                <div class="{message_class}">
-                    <strong>{agent_icon} {agent_name} ({timestamp}):</strong><br>
-                    {message['content']}
+                <div class="agent-label">{agent_info['icon']} {agent_info['name']} • {timestamp}</div>
+                <div class="{agent_info['css_class']}">
+                    <div class="message-bubble">
+                        {message['content']}
+                    </div>
                 </div>
             ''', unsafe_allow_html=True)
+
+def get_agent_info_from_message(message):
+    """Get agent information based on message type."""
+    message_type = message.get('message_type', '')
     
-    st.markdown('</div>', unsafe_allow_html=True)
+    if 'expert' in message_type:
+        return {
+            'name': 'Expert Agent',
+            'icon': '🎯',
+            'css_class': 'expert-message'
+        }
+    elif 'technical_design' in message_type:
+        return {
+            'name': 'Technical Architect',
+            'icon': '🏗️',
+            'css_class': 'technical-message'
+        }
+    elif 'task_creation' in message_type or 'dependency' in message_type:
+        return {
+            'name': 'Dependency Resolver',
+            'icon': '📊',
+            'css_class': 'dependency-message'
+        }
+    else:
+        return {
+            'name': 'Master Agent',
+            'icon': '🤖',
+            'css_class': 'agent-message'
+        }
 
 def display_agent_activities():
     """Display current agent activities with live status updates."""
@@ -294,18 +450,28 @@ def display_agent_activities():
     active_agents = [a for a in st.session_state.agent_activities if a['status'] == 'active']
     
     if active_agents:
-        st.markdown('<div class="chat-container">', unsafe_allow_html=True)
-        
         for activity in active_agents:
             elapsed = time.time() - activity['start_time']
+            
+            # Get agent icon
+            agent_icon = "🔄"
+            if "Expert" in activity['agent']:
+                agent_icon = "🎯"
+            elif "Technical" in activity['agent']:
+                agent_icon = "🏗️"
+            elif "Dependency" in activity['agent']:
+                agent_icon = "📊"
+            elif "Master" in activity['agent']:
+                agent_icon = "🤖"
+            
             st.markdown(f'''
                 <div class="agent-status">
-                    🔄 <strong>{activity['agent']}</strong> {activity['activity']}
-                    <span style="opacity: 0.8; font-size: 0.8rem;">(working for {elapsed:.1f}s)</span>
+                    <div class="message-bubble">
+                        {agent_icon} <strong>{activity['agent']}</strong> {activity['activity']}
+                        <span style="opacity: 0.8; font-size: 0.8rem;">(working for {elapsed:.1f}s)</span>
+                    </div>
                 </div>
             ''', unsafe_allow_html=True)
-        
-        st.markdown('</div>', unsafe_allow_html=True)
         
         # Auto-refresh while agents are working
         if st.session_state.processing:
@@ -595,23 +761,7 @@ def main():
     # Display sidebar
     display_sidebar()
     
-    # Introduction text for new users
-    if not st.session_state.conversation_history:
-        st.markdown("""
-        ### 🎯 Welcome to the Salesforce AI Agent System
-        
-        This intelligent system helps you transform high-level business requirements into detailed Salesforce implementation plans.
-        
-        **How it works:**
-        1. **Describe your requirement** - Tell us what you need in natural language
-        2. **AI Expert Analysis** - Our agents identify gaps and suggest enhancements  
-        3. **Choose suggestions** - Accept, modify, or skip expert recommendations
-        4. **Get your plan** - Receive a comprehensive implementation plan
-        
-        Ready to get started? Enter your business requirement below! 👇
-        """)
-    
-    # Display conversation history with enhanced styling
+    # Display conversation history with modern chat styling
     display_conversation_history()
     
     # Display agent activities (real-time status)
@@ -620,29 +770,91 @@ def main():
     # Expert suggestions panel (when available)
     display_expert_suggestions_panel()
     
-    # Input area
-    st.markdown("---")
+    # Fixed footer with input
+    create_chat_input_footer()
+
+def create_chat_input_footer():
+    """Create the fixed footer with chat input."""
+    
+    # Add minimal spacing to prevent content from being hidden behind footer
+    st.markdown('<div style="height: 80px;"></div>', unsafe_allow_html=True)
     
     # Show processing indicator if agents are working
     if st.session_state.processing:
-        st.info("🤖 Agents are working on your request... Please wait.")
+        st.markdown('''
+            <div style="position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%); 
+                        background: rgba(255, 193, 7, 0.9); color: #856404; padding: 8px 16px; 
+                        border-radius: 20px; font-size: 0.9rem; z-index: 999;">
+                🤖 Agents are working on your request... Please wait.
+            </div>
+        ''', unsafe_allow_html=True)
     
-    # User input form
-    with st.form("user_input_form", clear_on_submit=True):
-        user_input = st.text_area(
-            "💬 Enter your message or business requirement:",
-            height=100,
-            placeholder="Describe what you need in Salesforce..." if not st.session_state.processing else "Please wait for agents to finish...",
-            disabled=st.session_state.processing
-        )
+    # Create the fixed footer with Streamlit form
+    st.markdown('''
+        <div class="chat-input-footer">
+            <div class="chat-input-container" id="streamlit-form-container">
+                <!-- Streamlit form will be inserted here -->
+            </div>
+        </div>
         
-        submit_text = "📤 Send Message" if not st.session_state.processing else "⏳ Agents Working..."
+        <style>
+        /* Override Streamlit form styling for the footer */
+        .chat-input-footer .stForm {
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+        }
         
-        submit_button = st.form_submit_button(
-            submit_text,
-            type="primary",
-            disabled=st.session_state.processing
-        )
+        .chat-input-footer .stTextArea > div > div {
+            border-radius: 22px !important;
+            border: 2px solid #e9ecef !important;
+        }
+        
+        .chat-input-footer .stTextArea > div > div:focus-within {
+            border-color: #667eea !important;
+        }
+        
+        .chat-input-footer .stButton > button {
+            border-radius: 22px !important;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+            color: white !important;
+            border: none !important;
+            height: 44px !important;
+            min-width: 44px !important;
+            font-weight: 600 !important;
+        }
+        
+        .chat-input-footer .stButton > button:hover {
+            transform: scale(1.05) !important;
+        }
+        
+        .chat-input-footer .stForm {
+            border: none !important;
+        }
+        </style>
+    ''', unsafe_allow_html=True)
+    
+    # Use Streamlit's form in the footer
+    with st.form("chat_input_form", clear_on_submit=True):
+        col1, col2 = st.columns([0.85, 0.15])
+        
+        with col1:
+            user_input = st.text_area(
+                "Message",
+                label_visibility="collapsed",
+                placeholder="Describe what you need in Salesforce..." if not st.session_state.processing else "Please wait for agents to finish...",
+                disabled=st.session_state.processing,
+                key="chat_input",
+                height=44
+            )
+        
+        with col2:
+            submit_text = "⏳" if st.session_state.processing else "📤"
+            submit_button = st.form_submit_button(
+                submit_text,
+                disabled=st.session_state.processing,
+                use_container_width=True
+            )
         
         if submit_button and user_input:
             process_user_input(user_input)
