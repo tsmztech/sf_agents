@@ -126,6 +126,9 @@ def get_status_badge(state: str) -> str:
         "clarifying": ("Clarifying Requirements", "status-clarifying"),
         "expert_analysis": ("Expert Analysis", "status-expert"),
         "suggestions_review": ("Reviewing Suggestions", "status-suggestions"),
+        "technical_design": ("Technical Architecture", "status-planning"),
+        "task_creation": ("Creating Implementation Tasks", "status-planning"),
+        "final_review": ("Final Review", "status-suggestions"),
         "planning": ("Ready for Planning", "status-planning"),
         "completed": ("Implementation Plan Created", "status-completed")
     }
@@ -342,11 +345,14 @@ def display_sidebar():
                 
                 # Progress indicator
                 progress_mapping = {
-                    "initial": 0.15,
-                    "clarifying": 0.35,
-                    "expert_analysis": 0.55,
-                    "suggestions_review": 0.75,
-                    "planning": 0.85,
+                    "initial": 0.10,
+                    "clarifying": 0.25,
+                    "expert_analysis": 0.40,
+                    "suggestions_review": 0.55,
+                    "technical_design": 0.70,
+                    "task_creation": 0.85,
+                    "final_review": 0.95,
+                    "planning": 0.90,
                     "completed": 1.0
                 }
                 progress = progress_mapping.get(state, 0)
@@ -500,6 +506,12 @@ def process_user_input(user_input: str):
             add_agent_activity("Master Agent", "is analyzing your requirements...")
         elif current_state == "suggestions_review":
             add_agent_activity("Master Agent", "is processing your selection...")
+        elif current_state == "technical_design":
+            add_agent_activity("Technical Architect", "is creating detailed architecture...")
+        elif current_state == "task_creation":
+            add_agent_activity("Dependency Resolver", "is creating implementation tasks...")
+        elif current_state == "final_review":
+            add_agent_activity("Master Agent", "is processing your review...")
         elif current_state == "planning":
             add_agent_activity("Master Agent", "is creating your implementation plan...")
         else:
@@ -539,8 +551,18 @@ def process_user_input(user_input: str):
             st.success("💡 Expert suggestions ready for your review!")
         elif result['type'] == 'suggestions_accepted':
             st.success("✅ Expert suggestions incorporated!")
+            # Automatically trigger technical design
+            add_agent_activity("Technical Architect", "is creating detailed architecture...")
         elif result['type'] == 'original_requirements_only':
             st.info("👍 Proceeding with original requirements.")
+            # Automatically trigger technical design
+            add_agent_activity("Technical Architect", "is creating detailed architecture...")
+        elif result['type'] == 'technical_design_complete':
+            st.success("🏗️ Technical architecture completed!")
+            # Automatically trigger task creation
+            add_agent_activity("Dependency Resolver", "is creating implementation tasks...")
+        elif result['type'] == 'task_creation_complete':
+            st.success("📋 Implementation tasks created!")
         elif result['type'] == 'custom_selection_confirmed':
             st.success("🔧 Custom suggestions incorporated!")
         elif result['type'] == 'ready_for_planning':
