@@ -29,6 +29,11 @@ class Config:
     DEBUG: bool = os.getenv("DEBUG", "True").lower() == "true"
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
     
+    # Test Configuration Flag
+    # When True: Use environment variables from .env file (bypass UI configuration)
+    # When False: Use UI configuration popup (production mode)
+    USE_ENV_CONFIG: bool = os.getenv("USE_ENV_CONFIG", "False").lower() == "true"
+    
     # Memory and Storage
     CONVERSATION_HISTORY_PATH: str = "data/conversation_history"
     PLANS_STORAGE_PATH: str = "data/implementation_plans"

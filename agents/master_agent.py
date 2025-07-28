@@ -395,7 +395,7 @@ What would you like to do with these schema recommendations?"""
                 "response": response,
                 "state": self.conversation_state,
                 "type": "expert_suggestions",
-                "expert_analysis": expert_analysis,
+                "schema_analysis": schema_analysis,
                 "session_id": self.memory_manager.session_id
             }
             
@@ -404,11 +404,11 @@ What would you like to do with these schema recommendations?"""
             error_details = traceback.format_exc()
             print(f"Expert analysis error: {error_details}")  # For debugging
             
-            error_response = f"""I encountered an issue while consulting with the expert agent: {str(e)}
+            error_response = f"""I encountered an issue while consulting with the Schema Expert agent: {str(e)}
 
 Let me proceed with creating a technical implementation plan based on your current requirements. 
 
-Would you like me to continue with the plan creation, or would you prefer to try the expert analysis again?"""
+Would you like me to continue with the plan creation, or would you prefer to try the schema analysis again?"""
             
             self.memory_manager.add_message("agent", error_response, "error")
             self.conversation_state = "planning"
@@ -451,20 +451,18 @@ Would you like me to continue with the plan creation, or would you prefer to try
 
 These enhancements will make your Salesforce solution more robust, scalable, and aligned with industry best practices. 
 
-🚀 **Ready to create your technical architecture!**
+🚀 **Now proceeding to create your technical architecture...**
 
-Now I'll work with our Technical Architect to design the detailed solution architecture including data models, automation, security, and all technical components."""
+I'll work with our Technical Architect to design the detailed solution architecture including data models, automation, security, and all technical components."""
 
         self.memory_manager.add_message("agent", response, "suggestions_accepted")
         self.conversation_state = "technical_design"
         
-        return {
-            "response": response,
-            "state": self.conversation_state,
-            "type": "suggestions_accepted",
-            "suggestions_included": "all",
-            "session_id": self.memory_manager.session_id
-        }
+        # Store the response to combine with technical design
+        self._temp_response = response
+        
+        # Automatically proceed to technical design
+        return self._handle_technical_design()
     
     def _proceed_with_original_requirements(self) -> Dict[str, Any]:
         """Proceed with original requirements only."""
@@ -473,20 +471,18 @@ Now I'll work with our Technical Architect to design the detailed solution archi
 
 The expert suggestions will be noted as optional enhancements that you can consider for future phases if needed.
 
-🚀 **Ready to create your technical architecture!**
+🚀 **Now proceeding to create your technical architecture...**
 
-Now I'll work with our Technical Architect to design the detailed solution architecture based on your core requirements."""
+I'll work with our Technical Architect to design the detailed solution architecture based on your core requirements."""
 
         self.memory_manager.add_message("agent", response, "original_requirements_only")
         self.conversation_state = "technical_design"
         
-        return {
-            "response": response,
-            "state": self.conversation_state,
-            "type": "original_requirements_only",
-            "suggestions_included": "none",
-            "session_id": self.memory_manager.session_id
-        }
+        # Store the response to combine with technical design
+        self._temp_response = response
+        
+        # Automatically proceed to technical design
+        return self._handle_technical_design()
     
     def _handle_selective_suggestions(self) -> Dict[str, Any]:
         """Handle selective suggestion inclusion."""
@@ -657,6 +653,12 @@ Shall I proceed with generating the detailed implementation plan that includes y
         # Prepare requirements context
         requirements_context = self._get_consolidated_requirements()
         
+        # Check if we're coming from a previous response that should be combined
+        previous_response = ""
+        if hasattr(self, '_temp_response'):
+            previous_response = self._temp_response + "\n\n"
+            delattr(self, '_temp_response')
+        
         response = """🏗️ **Creating Detailed Technical Architecture...**
 
 Our Technical Architect is now designing the complete Salesforce solution architecture including:
@@ -682,31 +684,23 @@ This will provide the blueprint for your entire Salesforce implementation."""
             # Format the technical design for user display
             design_summary = self._format_technical_design_summary()
             
-            final_response = f"""{response}
+            final_response = f"""{previous_response}{response}
 
 ✅ **Technical Architecture Complete!**
 
 {design_summary}
 
-The detailed technical architecture has been created. Would you like me to proceed with creating the implementation tasks and project plan?
+🚀 **Ready to create implementation tasks and project plan!**
 
-**Options:**
-• **Continue** - "Yes, create the implementation tasks"  
-• **Review Details** - "Show me more details about [specific area]"
-• **Modify** - "I'd like to change [specific aspect]" """
+Now I'll work with our Dependency Resolver to create detailed implementation tasks, dependencies, and project timeline."""
 
             self.memory_manager.add_message("agent", final_response, "technical_design_complete")
             
-            # Move to task creation state
+            # Move to task creation state and automatically proceed
             self.conversation_state = "task_creation"
             
-            return {
-                "response": final_response,
-                "state": self.conversation_state,
-                "type": "technical_design_complete",
-                "technical_design": self.technical_design,
-                "session_id": self.memory_manager.session_id
-            }
+            # Automatically proceed to task creation
+            return self._handle_task_creation()
             
         except Exception as e:
             error_response = f"❌ **Error creating technical design**: {str(e)}\n\nPlease try again or contact support."
@@ -764,21 +758,25 @@ This will give you a complete project roadmap for implementation."""
 
 {task_summary}
 
-**Ready for Final Review**
+🎉 **Your Complete Salesforce Solution is Ready!**
 
-I've created your complete technical architecture and implementation plan. Here's what you have:
+I've successfully created your end-to-end implementation plan:
 
-🏗️ **Technical Design**: Detailed schema, automation, UI, and security specifications
-📋 **Implementation Tasks**: {self.implementation_tasks.get('total_tasks', 'Multiple')} organized tasks across {len(self.implementation_tasks.get('phases', []))} phases
+🏗️ **Technical Architecture**: Detailed schema, automation, UI, and security specifications
+📋 **Implementation Tasks**: {self.implementation_tasks.get('total_tasks', 'Multiple')} organized tasks across {len(self.implementation_tasks.get('phases', []))} phases  
 ⚡ **Dependencies Resolved**: Proper task sequencing for efficient implementation
 📊 **Project Ready**: Effort estimates, risk assessments, and acceptance criteria
+📝 **Documentation**: Complete technical specifications and user stories
 
-Would you like to review and approve this plan?
+**Your solution is now ready for implementation!**
 
-**Options:**
-• **Approve Plan** - "Yes, approve the complete plan"
-• **Review Details** - "Show me details about [phase/task/area]"  
-• **Request Changes** - "I'd like to modify [specific aspect]" """
+You can:
+• **Download/Export** the complete plan and specifications
+• **Review Details** of any specific phase, task, or technical component
+• **Refine** any aspect of the solution
+• **Proceed** with development using the provided roadmap
+
+What would you like to do next?"""
 
             self.memory_manager.add_message("agent", final_response, "task_creation_complete")
             

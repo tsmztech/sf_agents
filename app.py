@@ -273,6 +273,8 @@ def initialize_session_state():
         st.session_state.use_username_password = False
     if 'last_auth_method' not in st.session_state:
         st.session_state.last_auth_method = ""
+    if 'force_ui_config' not in st.session_state:
+        st.session_state.force_ui_config = False
     
     # Initialize agent activity tracking
     initialize_agent_tracking()
@@ -1009,6 +1011,46 @@ def validate_and_save_config(openai_key, sf_instance, sf_client_id, sf_client_se
                 st.error("❌ Salesforce configuration validation failed")
             return False
 
+def _validate_env_config():
+    """Validate environment variables for test mode."""
+    from config import Config
+    
+    # Check OpenAI key
+    if not Config.OPENAI_API_KEY:
+        return False
+    
+    # Check Salesforce config (either Client Credentials or Username-Password)
+    has_client_creds = all([
+        Config.SALESFORCE_INSTANCE_URL,
+        Config.SALESFORCE_CLIENT_ID,
+        Config.SALESFORCE_CLIENT_SECRET
+    ])
+    
+    has_username_password = all([
+        Config.SALESFORCE_INSTANCE_URL,
+        Config.SALESFORCE_CLIENT_ID,
+        Config.SALESFORCE_CLIENT_SECRET,
+        Config.SALESFORCE_USERNAME,
+        Config.SALESFORCE_PASSWORD,
+        Config.SALESFORCE_SECURITY_TOKEN
+    ])
+    
+    return has_client_creds or has_username_password
+
+def _load_config_from_env():
+    """Load configuration from environment variables into session state."""
+    from config import Config
+    
+    # Load from environment
+    st.session_state.openai_api_key = Config.OPENAI_API_KEY
+    st.session_state.sf_instance_url = Config.SALESFORCE_INSTANCE_URL
+    st.session_state.sf_client_id = Config.SALESFORCE_CLIENT_ID
+    st.session_state.sf_client_secret = Config.SALESFORCE_CLIENT_SECRET
+    st.session_state.sf_domain = Config.SALESFORCE_DOMAIN
+    st.session_state.sf_username = Config.SALESFORCE_USERNAME or ""
+    st.session_state.sf_password = Config.SALESFORCE_PASSWORD or ""
+    st.session_state.sf_security_token = Config.SALESFORCE_SECURITY_TOKEN or ""
+
 def validate_openai_config(api_key):
     """Validate OpenAI API key."""
     if not api_key:
@@ -1137,7 +1179,33 @@ def main():
     """Main application function."""
     initialize_session_state()
     
-    # Show configuration popup if not complete
+    # Import config to check test flag
+    from config import Config
+    
+    # Check if we should use environment variables (test mode)
+    # Only use env config if flag is enabled AND user hasn't forced UI config
+    if Config.USE_ENV_CONFIG and not st.session_state.force_ui_config:
+        # Test mode: Use environment variables from .env file
+        if not _validate_env_config():
+            st.error("❌ Test mode enabled but environment variables are missing or invalid. Please check your .env file.")
+            st.info("💡 Set USE_ENV_CONFIG=False in .env to use UI configuration instead.")
+            return
+        
+        # Set config as complete and load from env
+        st.session_state.config_complete = True
+        _load_config_from_env()
+        
+        # Show test mode indicator in sidebar
+        with st.sidebar:
+            st.success("🧪 **Test Mode Active**")
+            st.info("Using .env configuration")
+            if st.button("🔄 Switch to UI Config"):
+                # Temporarily disable test mode for this session
+                st.session_state.force_ui_config = True
+                st.session_state.config_complete = False
+                st.rerun()
+    
+    # Show configuration popup if not complete (and not in test mode)
     if not st.session_state.config_complete:
         show_configuration_popup()
         return
