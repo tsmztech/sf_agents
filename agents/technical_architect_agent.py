@@ -112,14 +112,11 @@ class SalesforceTechnicalArchitectAgent:
                               specifications for all Salesforce components needed."""
         )
         
-        # Execute the technical analysis
-        crew = Crew(
-            agents=[self.agent],
-            tasks=[technical_task],
-            verbose=True
+        # Execute the technical analysis using the simple agent
+        result = self.agent.execute_task(
+            task_description=technical_task.description,
+            context=context
         )
-        
-        result = crew.kickoff()
         
         # Parse and structure the technical design
         return self._parse_technical_design(result)

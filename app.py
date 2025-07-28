@@ -289,6 +289,10 @@ def initialize_session_state():
     
     # Initialize agent activity tracking
     initialize_agent_tracking()
+    
+    # Initialize pending next phase for automatic progression
+    if 'pending_next_phase' not in st.session_state:
+        st.session_state.pending_next_phase = None
 
 def get_status_badge(state: str) -> str:
     """Get HTML for status badge based on conversation state."""
@@ -517,6 +521,150 @@ def display_agent_activities():
             time.sleep(0.5)
             st.rerun()
 
+def display_agent_status_indicators():
+    """Display visual indicators for agent status in the sidebar."""
+    
+    # Define all agents and their info
+    agents = [
+        {"name": "Master Agent", "icon": "🎯", "key": "master"},
+        {"name": "Schema Expert", "icon": "🗄️", "key": "schema"},
+        {"name": "Technical Architect", "icon": "🏗️", "key": "technical"},
+        {"name": "Dependency Resolver", "icon": "📋", "key": "dependency"}
+    ]
+    
+    # Determine current active agent based on conversation state and activities
+    active_agent = get_current_active_agent()
+    
+    # Custom CSS for agent status indicators
+    st.markdown("""
+    <style>
+    .agent-indicator {
+        display: flex;
+        align-items: center;
+        padding: 8px 12px;
+        margin: 4px 0;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 500;
+        transition: all 0.3s ease;
+        border: 2px solid transparent;
+    }
+    
+    .agent-indicator.active {
+        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        color: white;
+        border-color: #1e7e34;
+        box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
+        animation: pulse-green 2s infinite;
+    }
+    
+    .agent-indicator.inactive {
+        background: #f8f9fa;
+        color: #6c757d;
+        border-color: #dee2e6;
+    }
+    
+    .agent-indicator.pending {
+        background: linear-gradient(135deg, #ffc107 0%, #fd7e14 100%);
+        color: #212529;
+        border-color: #e0a800;
+        box-shadow: 0 2px 8px rgba(255, 193, 7, 0.3);
+    }
+    
+    .agent-icon {
+        margin-right: 8px;
+        font-size: 1rem;
+    }
+    
+    @keyframes pulse-green {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.02); }
+    }
+    
+    .agent-status-container {
+        margin: 10px 0;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # Display agent indicators
+    st.markdown('<div class="agent-status-container">', unsafe_allow_html=True)
+    
+    for agent in agents:
+        # Determine status
+        if active_agent == agent["key"]:
+            status_class = "active"
+            status_text = "🟢 Active"
+        elif is_agent_pending(agent["key"]):
+            status_class = "pending" 
+            status_text = "🟡 Pending"
+        else:
+            status_class = "inactive"
+            status_text = "⚪ Idle"
+        
+        # Create the indicator
+        indicator_html = f"""
+        <div class="agent-indicator {status_class}">
+            <span class="agent-icon">{agent["icon"]}</span>
+            <span>{agent["name"]}</span>
+        </div>
+        """
+        
+        st.markdown(indicator_html, unsafe_allow_html=True)
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+
+def get_current_active_agent():
+    """Determine which agent is currently active based on conversation state and activities."""
+    
+    # First check if any agent is actively working (from agent activities)
+    if 'agent_activities' in st.session_state:
+        for activity in st.session_state.agent_activities:
+            if activity.get('status') == 'active':
+                agent_name = activity.get('agent', '').lower()
+                if 'master' in agent_name:
+                    return 'master'
+                elif 'schema' in agent_name or 'expert' in agent_name:
+                    return 'schema'
+                elif 'technical' in agent_name or 'architect' in agent_name:
+                    return 'technical'
+                elif 'dependency' in agent_name or 'resolver' in agent_name:
+                    return 'dependency'
+    
+    # If no active activities, determine based on conversation state
+    if st.session_state.agent:
+        state = st.session_state.agent.conversation_state
+        
+        if state in ["initial", "clarifying", "final_review", "planning"]:
+            return 'master'
+        elif state in ["expert_analysis", "suggestions_review"]:
+            return 'schema'
+        elif state in ["technical_design"]:
+            return 'technical'
+        elif state in ["task_creation"]:
+            return 'dependency'
+    
+    # Default to master agent
+    return 'master'
+
+def is_agent_pending(agent_key):
+    """Check if an agent is pending to work next based on the current flow."""
+    
+    if not st.session_state.agent:
+        return False
+        
+    state = st.session_state.agent.conversation_state
+    
+    # Define the typical flow progression
+    if state == "initial" and agent_key == "schema":
+        return True
+    elif state == "suggestions_review" and agent_key == "technical":
+        return True
+    elif state == "technical_design" and agent_key == "dependency":
+        return True
+    
+    return False
+
 def display_sidebar():
     """Display the sidebar with session information and controls."""
     with st.sidebar:
@@ -573,6 +721,10 @@ def display_sidebar():
             st.session_state.use_username_password = False
             st.session_state.last_auth_method = ""
             st.rerun()
+        
+        # Agent Status Visual Indicator
+        st.subheader("🤖 Agent Status")
+        display_agent_status_indicators()
         
         # Session information
         st.subheader("📊 Session Info")
@@ -682,33 +834,8 @@ def display_expert_suggestions_panel():
                     for consideration in expert_analysis["implementation_considerations"]:
                         st.markdown(f"• {consideration}")
         
-        # Quick action buttons
-        st.markdown("#### Quick Actions:")
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            if st.button("✅ Accept All", type="primary"):
-                result = st.session_state.agent.process_user_input("accept all")
-                st.session_state.conversation_history = st.session_state.agent.get_conversation_history()
-                st.rerun()
-        
-        with col2:
-            if st.button("🔧 Select Specific"):
-                result = st.session_state.agent.process_user_input("select specific")
-                st.session_state.conversation_history = st.session_state.agent.get_conversation_history()
-                st.rerun()
-        
-        with col3:
-            if st.button("➡️ Proceed As-Is"):
-                result = st.session_state.agent.process_user_input("proceed as-is")
-                st.session_state.conversation_history = st.session_state.agent.get_conversation_history()
-                st.rerun()
-        
-        with col4:
-            if st.button("❓ Need Details"):
-                result = st.session_state.agent.process_user_input("need details")
-                st.session_state.conversation_history = st.session_state.agent.get_conversation_history()
-                st.rerun()
+        # Note: User can respond via chat instead of buttons
+        st.markdown("#### 💬 **Please respond in the chat below with your preference**")
 
 def load_session(session_id: str):
     """Load an existing session."""
@@ -793,16 +920,25 @@ def process_user_input(user_input: str):
             st.success("💡 Expert suggestions ready for your review!")
         elif result['type'] == 'suggestions_accepted':
             st.success("✅ Expert suggestions incorporated!")
-            # Automatically trigger technical design
-            add_agent_activity("Technical Architect", "is creating detailed architecture...")
+            # Check if we need to trigger next phase
+            if result.get('trigger_next'):
+                # Set up automatic progression to next phase
+                st.session_state.pending_next_phase = result['trigger_next']
+                st.rerun()  # Trigger rerun to execute next phase
         elif result['type'] == 'original_requirements_only':
             st.info("👍 Proceeding with original requirements.")
-            # Automatically trigger technical design
-            add_agent_activity("Technical Architect", "is creating detailed architecture...")
+            # Check if we need to trigger next phase
+            if result.get('trigger_next'):
+                # Set up automatic progression to next phase
+                st.session_state.pending_next_phase = result['trigger_next']
+                st.rerun()  # Trigger rerun to execute next phase
         elif result['type'] == 'technical_design_complete':
             st.success("🏗️ Technical architecture completed!")
-            # Automatically trigger task creation
-            add_agent_activity("Dependency Resolver", "is creating implementation tasks...")
+            # Check if we need to trigger next phase
+            if result.get('trigger_next'):
+                # Set up automatic progression to next phase
+                st.session_state.pending_next_phase = result['trigger_next']
+                st.rerun()  # Trigger rerun to execute next phase
         elif result['type'] == 'task_creation_complete':
             st.success("📋 Implementation tasks created!")
         elif result['type'] == 'custom_selection_confirmed':
@@ -1251,6 +1387,45 @@ def main():
     
     # Display sidebar
     display_sidebar()
+    
+    # Handle pending next phase (automatic progression after user responses)
+    if st.session_state.pending_next_phase and not st.session_state.processing:
+        phase_type = st.session_state.pending_next_phase
+        st.session_state.pending_next_phase = None  # Clear it immediately
+        
+        # Add appropriate agent activity
+        if phase_type == "technical_design":
+            add_agent_activity("Technical Architect", "is creating detailed architecture...")
+        elif phase_type == "task_creation":
+            add_agent_activity("Dependency Resolver", "is creating implementation tasks...")
+        
+        # Set processing state
+        st.session_state.processing = True
+        
+        # Execute the next phase
+        try:
+            result = st.session_state.agent.trigger_next_phase(phase_type)
+            
+            # Complete the agent activity
+            if phase_type == "technical_design":
+                complete_agent_activity("Technical Architect")
+            elif phase_type == "task_creation":
+                complete_agent_activity("Dependency Resolver")
+            
+            # Update conversation history
+            st.session_state.conversation_history = st.session_state.agent.get_conversation_history()
+            
+            # Handle the result (check for further triggers)
+            if result.get('trigger_next'):
+                st.session_state.pending_next_phase = result['trigger_next']
+            
+        except Exception as e:
+            st.error(f"Error in automatic progression: {str(e)}")
+        finally:
+            st.session_state.processing = False
+        
+        # Rerun to show the results
+        st.rerun()
     
     # Display conversation history with modern chat styling
     display_conversation_history()

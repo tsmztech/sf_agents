@@ -368,14 +368,15 @@ I've consulted with our Salesforce Schema Expert to analyze your data model requ
 
 {suggestions_summary}
 
-**These are schema recommendations for your solution.** You can choose to:
+**These are schema recommendations for your solution.** 
 
-✅ **Accept All** - Include all schema recommendations in your implementation plan
-🔧 **Select Specific** - Tell me which objects/fields you'd like to include  
-➡️ **Proceed As-Is** - Continue with your original requirements only
-❓ **Need Details** - Ask me to explain any specific object or field recommendation
+Please let me know how you'd like to proceed:
+- Say **"accept all"** to include all schema recommendations
+- Say **"proceed as-is"** to continue with your original requirements only  
+- Ask about **specific objects or fields** if you need more details
+- Tell me which **specific recommendations** you'd like to include
 
-What would you like to do with these schema recommendations?"""
+How would you like to proceed with these schema recommendations?"""
 
             # Store the expert response
             self.memory_manager.add_message("agent", response, "expert_suggestions")
@@ -450,11 +451,14 @@ I'll work with our Technical Architect to design the detailed solution architect
         self.memory_manager.add_message("agent", response, "suggestions_accepted")
         self.conversation_state = "technical_design"
         
-        # Store the response to combine with technical design
-        self._temp_response = response
-        
-        # Automatically proceed to technical design
-        return self._handle_technical_design()
+        # Return immediately to show this response, technical design will be triggered separately
+        return {
+            "response": response,
+            "state": self.conversation_state,
+            "type": "suggestions_accepted",
+            "session_id": self.memory_manager.session_id,
+            "trigger_next": "technical_design"  # Flag to trigger next phase
+        }
     
     def _proceed_with_original_requirements(self) -> Dict[str, Any]:
         """Proceed with original requirements only."""
@@ -470,11 +474,14 @@ I'll work with our Technical Architect to design the detailed solution architect
         self.memory_manager.add_message("agent", response, "original_requirements_only")
         self.conversation_state = "technical_design"
         
-        # Store the response to combine with technical design
-        self._temp_response = response
-        
-        # Automatically proceed to technical design
-        return self._handle_technical_design()
+        # Return immediately to show this response, technical design will be triggered separately
+        return {
+            "response": response,
+            "state": self.conversation_state,
+            "type": "original_requirements_only",
+            "session_id": self.memory_manager.session_id,
+            "trigger_next": "technical_design"  # Flag to trigger next phase
+        }
     
     def _handle_selective_suggestions(self) -> Dict[str, Any]:
         """Handle selective suggestion inclusion."""
@@ -645,11 +652,7 @@ Shall I proceed with generating the detailed implementation plan that includes y
         # Prepare requirements context
         requirements_context = self._get_consolidated_requirements()
         
-        # Check if we're coming from a previous response that should be combined
-        previous_response = ""
-        if hasattr(self, '_temp_response'):
-            previous_response = self._temp_response + "\n\n"
-            delattr(self, '_temp_response')
+        # Technical design now starts fresh - no previous response combination needed
         
         response = """🏗️ **Creating Detailed Technical Architecture...**
 
@@ -676,7 +679,7 @@ This will provide the blueprint for your entire Salesforce implementation."""
             # Format the technical design for user display
             design_summary = self._format_technical_design_summary()
             
-            final_response = f"""{previous_response}{response}
+            final_response = f"""{response}
 
 ✅ **Technical Architecture Complete!**
 
@@ -688,11 +691,17 @@ Now I'll work with our Dependency Resolver to create detailed implementation tas
 
             self.memory_manager.add_message("agent", final_response, "technical_design_complete")
             
-            # Move to task creation state and automatically proceed
+            # Move to task creation state 
             self.conversation_state = "task_creation"
             
-            # Automatically proceed to task creation
-            return self._handle_task_creation()
+            # Return response and flag to trigger task creation
+            return {
+                "response": final_response,
+                "state": self.conversation_state,
+                "type": "technical_design_complete",
+                "session_id": self.memory_manager.session_id,
+                "trigger_next": "task_creation"  # Flag to trigger next phase
+            }
             
         except Exception as e:
             error_response = f"❌ **Error creating technical design**: {str(e)}\n\nPlease try again or contact support."
@@ -858,7 +867,7 @@ You can ask follow-up questions or start a new requirement anytime."""
         base_requirement = ""
         
         # Get the original requirement
-        for msg in self.memory_manager.messages:
+        for msg in self.memory_manager.get_messages():
             if msg.role == "user" and msg.message_type == "requirement":
                 base_requirement = msg.content
                 break
@@ -1230,3 +1239,17 @@ VALUE ENHANCEMENTS ADDED:
             }
         
         return self._handle_expert_analysis() 
+
+    def trigger_next_phase(self, phase_type: str) -> Dict[str, Any]:
+        """Trigger the next phase in the workflow."""
+        if phase_type == "technical_design":
+            return self._handle_technical_design()
+        elif phase_type == "task_creation":
+            return self._handle_task_creation()
+        else:
+            return {
+                "response": f"Unknown phase type: {phase_type}",
+                "state": self.conversation_state,
+                "type": "error",
+                "session_id": self.memory_manager.session_id
+            } 

@@ -136,13 +136,11 @@ class DependencyResolverAgent:
         )
         
         # Execute task creation
-        crew = Crew(
-            agents=[self.agent],
-            tasks=[task_creation_task],
-            verbose=True
+        # Execute using simple agent
+        result = self.agent.execute_task(
+            task_description=task_creation_task.description,
+            context=context
         )
-        
-        result = crew.kickoff()
         
         # Parse and structure the implementation plan
         return self._parse_implementation_plan(result)
@@ -171,13 +169,11 @@ class DependencyResolverAgent:
             expected_output="Optimized implementation plan with improved sequencing"
         )
         
-        crew = Crew(
-            agents=[self.agent],
-            tasks=[optimization_task],
-            verbose=True
+        # Execute using simple agent
+        optimization_result = self.agent.execute_task(
+            task_description=optimization_task.description,
+            context=""
         )
-        
-        optimization_result = crew.kickoff()
         
         return {
             "optimization_status": "completed",
@@ -212,13 +208,11 @@ class DependencyResolverAgent:
             expected_output="List of user stories with epics, acceptance criteria, and estimates"
         )
         
-        crew = Crew(
-            agents=[self.agent],
-            tasks=[user_story_task],
-            verbose=True
+        # Execute using simple agent
+        result = self.agent.execute_task(
+            task_description=user_story_task.description,
+            context=""
         )
-        
-        result = crew.kickoff()
         
         return self._parse_user_stories(result)
     
@@ -334,13 +328,11 @@ class DependencyResolverAgent:
             expected_output="Gantt chart data structure with timeline and dependencies"
         )
         
-        crew = Crew(
-            agents=[self.agent],
-            tasks=[gantt_task],
-            verbose=True
+        # Execute using simple agent
+        result = self.agent.execute_task(
+            task_description=gantt_task.description,
+            context=""
         )
-        
-        result = crew.kickoff()
         
         return {
             "gantt_data": str(result),
