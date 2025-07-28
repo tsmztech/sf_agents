@@ -1,8 +1,9 @@
 import json
 from typing import Dict, Any, List
 from datetime import datetime
-from crewai import Agent, Task, Crew
-from langchain_openai import ChatOpenAI
+from agents.simple_agent import Agent, Task, Crew
+import openai
+import os
 from config import Config
 
 class SalesforceTechnicalArchitectAgent:
@@ -12,11 +13,7 @@ class SalesforceTechnicalArchitectAgent:
     """
     
     def __init__(self):
-        self.llm = ChatOpenAI(
-            model="gpt-4",
-            api_key=Config.OPENAI_API_KEY,
-            temperature=0.1  # Lower temperature for technical precision
-        )
+        # OpenAI is handled by the simple agent implementation
         self._initialize_agent()
     
     def _initialize_agent(self):
@@ -46,9 +43,6 @@ class SalesforceTechnicalArchitectAgent:
                         
                         You create detailed technical specifications that development teams 
                         can directly implement without ambiguity.""",
-            verbose=True,
-            allow_delegation=False,
-            llm=self.llm
         )
     
     def create_technical_architecture(self, requirements: str, expert_suggestions: Dict[str, Any] = None) -> Dict[str, Any]:

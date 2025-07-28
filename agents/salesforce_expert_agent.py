@@ -1,6 +1,7 @@
 from typing import Dict, Any, List, Optional
-from crewai import Agent, Task, Crew
-from langchain_openai import ChatOpenAI
+from agents.simple_agent import Agent, Task, Crew
+import openai
+import os
 from config import Config
 import json
 import logging
@@ -26,12 +27,7 @@ class SalesforceSchemaExpertAgent:
     """
     
     def __init__(self):
-        # Initialize the LLM
-        self.llm = ChatOpenAI(
-            model="gpt-4",
-            api_key=Config.OPENAI_API_KEY,
-            temperature=0.2  # Lower temperature for more consistent expert advice
-        )
+        # OpenAI is handled by the simple agent implementation
         
         # Initialize Salesforce connector if configuration is available
         self.sf_connector = None
@@ -102,9 +98,6 @@ class SalesforceSchemaExpertAgent:
                         6. Think about data volume and performance
                         
                         You focus ONLY on schema design - no automation, security, or UI recommendations.""",
-            verbose=True,
-            allow_delegation=False,
-            llm=self.llm
         )
     
     def analyze_schema_requirements(

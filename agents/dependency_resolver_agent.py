@@ -1,8 +1,9 @@
 import json
 from typing import Dict, Any, List
 from datetime import datetime
-from crewai import Agent, Task, Crew
-from langchain_openai import ChatOpenAI
+from agents.simple_agent import Agent, Task, Crew
+import openai
+import os
 from config import Config
 
 class DependencyResolverAgent:
@@ -12,11 +13,7 @@ class DependencyResolverAgent:
     """
     
     def __init__(self):
-        self.llm = ChatOpenAI(
-            model="gpt-4",
-            api_key=Config.OPENAI_API_KEY,
-            temperature=0.2  # Balanced temperature for systematic thinking
-        )
+        # OpenAI is handled by the simple agent implementation
         self._initialize_agent()
     
     def _initialize_agent(self):
@@ -51,9 +48,6 @@ class DependencyResolverAgent:
                         
                         You create clear, actionable tasks that development teams can execute 
                         efficiently with minimal dependencies and maximum value delivery.""",
-            verbose=True,
-            allow_delegation=False,
-            llm=self.llm
         )
     
     def create_implementation_tasks(self, technical_design: Dict[str, Any], requirements_context: str = "") -> Dict[str, Any]:
