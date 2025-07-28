@@ -510,7 +510,11 @@ def display_sidebar():
                             test_result = st.session_state.agent.schema_expert.sf_connector.test_connection()
                             if test_result.get('connected'):
                                 org_info = test_result.get('org_info', {})
+                                auth_type = test_result.get('auth_type', 'unknown')
+                                auth_display = "🎯 Client Credentials" if auth_type == "client_credentials" else "🔄 Username-Password"
+                                
                                 st.success(f"✅ Connected to: {org_info.get('Name', 'Unknown Org')}")
+                                st.info(f"🔐 Auth Method: {auth_display}")
                                 st.info(f"📊 Available objects: {test_result.get('sobjects_count', 'Unknown')}")
                             else:
                                 st.error(f"❌ Connection failed: {test_result.get('error')}")
@@ -522,8 +526,24 @@ def display_sidebar():
             st.info("🔴 Salesforce not configured")
             with st.expander("ℹ️ Salesforce Configuration Help"):
                 st.markdown("""
-                To enable real-time Salesforce org access, add these variables to your `.env` file:
+                **🎯 Recommended: Client Credentials Flow (Only 3 fields needed!)**
                 
+                Add these to your `.env` file:
+                ```
+                SALESFORCE_INSTANCE_URL=https://your-instance.salesforce.com
+                SALESFORCE_CLIENT_ID=your_connected_app_client_id
+                SALESFORCE_CLIENT_SECRET=your_connected_app_client_secret
+                ```
+                
+                **Setup Steps:**
+                1. Create a Connected App in Salesforce (Setup → App Manager)
+                2. Enable OAuth Settings with scopes: `api`, `refresh_token`, `web`
+                3. Check "Enable Client Credentials Flow"
+                4. Add your server's IP to "Relax IP restrictions" if needed
+                
+                ---
+                
+                **🔄 Legacy: Username-Password Flow (6 fields - for backward compatibility)**
                 ```
                 SALESFORCE_INSTANCE_URL=https://your-instance.salesforce.com
                 SALESFORCE_CLIENT_ID=your_connected_app_client_id
@@ -531,13 +551,12 @@ def display_sidebar():
                 SALESFORCE_USERNAME=your_username
                 SALESFORCE_PASSWORD=your_password
                 SALESFORCE_SECURITY_TOKEN=your_security_token
-                SALESFORCE_DOMAIN=login  # or 'test' for sandbox
                 ```
                 
-                **How to set up:**
-                1. Create a Connected App in Salesforce (Setup → App Manager)
-                2. Enable OAuth Settings with scopes: `api`, `refresh_token`
-                3. Get your security token (Settings → Reset Security Token)
+                **Optional Settings:**
+                ```
+                SALESFORCE_DOMAIN=login  # or 'test' for sandbox
+                ```
                 """)
         
         # Session information

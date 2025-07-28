@@ -36,7 +36,21 @@ class SalesforceConnector:
     
     def _authenticate(self) -> None:
         """
-        Authenticate with Salesforce using OAuth 2.0 Username-Password Flow.
+        Authenticate with Salesforce using OAuth 2.0 Client Credentials or Username-Password Flow.
+        """
+        auth_type = Config.get_salesforce_auth_type()
+        
+        if auth_type == "client_credentials":
+            self._authenticate_client_credentials()
+        elif auth_type == "username_password":
+            self._authenticate_username_password()
+        else:
+            raise SalesforceConnectionError("No valid Salesforce authentication configuration found")
+    
+    def _authenticate_client_credentials(self) -> None:
+        """
+        Authenticate using OAuth 2.0 Client Credentials Flow (Server-to-Server).
+        Requires only: SALESFORCE_INSTANCE_URL, SALESFORCE_CLIENT_ID, SALESFORCE_CLIENT_SECRET
         """
         try:
             # Determine auth URL based on domain (production vs sandbox)
@@ -47,7 +61,52 @@ class SalesforceConnector:
             
             auth_url = f"{auth_base_url}/services/oauth2/token"
             
-            # Prepare authentication data
+            # Prepare authentication data for Client Credentials Flow
+            auth_data = {
+                'grant_type': 'client_credentials',
+                'client_id': Config.SALESFORCE_CLIENT_ID,
+                'client_secret': Config.SALESFORCE_CLIENT_SECRET
+            }
+            
+            logger.info("Authenticating with Salesforce using Client Credentials Flow...")
+            response = self.session.post(auth_url, data=auth_data)
+            
+            if response.status_code == 200:
+                token_data = response.json()
+                self.access_token = token_data['access_token']
+                # For client credentials, use the configured instance URL
+                self.instance_url = Config.SALESFORCE_INSTANCE_URL
+                
+                # Calculate token expiration (Client credentials tokens typically last longer)
+                self.token_expires_at = datetime.now() + timedelta(hours=1, minutes=45)
+                
+                logger.info(f"Successfully authenticated with Salesforce using Client Credentials. Instance: {self.instance_url}")
+            else:
+                error_msg = f"Client Credentials authentication failed: {response.status_code} - {response.text}"
+                logger.error(error_msg)
+                raise SalesforceConnectionError(error_msg)
+                
+        except requests.exceptions.RequestException as e:
+            error_msg = f"Network error during Client Credentials authentication: {e}"
+            logger.error(error_msg)
+            raise SalesforceConnectionError(error_msg)
+    
+    def _authenticate_username_password(self) -> None:
+        """
+        Authenticate using OAuth 2.0 Username-Password Flow (Legacy).
+        Requires: SALESFORCE_INSTANCE_URL, SALESFORCE_CLIENT_ID, SALESFORCE_CLIENT_SECRET,
+                 SALESFORCE_USERNAME, SALESFORCE_PASSWORD, SALESFORCE_SECURITY_TOKEN
+        """
+        try:
+            # Determine auth URL based on domain (production vs sandbox)
+            if Config.SALESFORCE_DOMAIN == "test":
+                auth_base_url = "https://test.salesforce.com"
+            else:
+                auth_base_url = "https://login.salesforce.com"
+            
+            auth_url = f"{auth_base_url}/services/oauth2/token"
+            
+            # Prepare authentication data for Username-Password Flow
             auth_data = {
                 'grant_type': 'password',
                 'client_id': Config.SALESFORCE_CLIENT_ID,
@@ -56,7 +115,7 @@ class SalesforceConnector:
                 'password': Config.SALESFORCE_PASSWORD + Config.SALESFORCE_SECURITY_TOKEN
             }
             
-            logger.info("Authenticating with Salesforce...")
+            logger.info("Authenticating with Salesforce using Username-Password Flow...")
             response = self.session.post(auth_url, data=auth_data)
             
             if response.status_code == 200:
@@ -64,17 +123,17 @@ class SalesforceConnector:
                 self.access_token = token_data['access_token']
                 self.instance_url = token_data['instance_url']
                 
-                # Calculate token expiration (Salesforce tokens typically last 2 hours)
+                # Calculate token expiration
                 self.token_expires_at = datetime.now() + timedelta(hours=1, minutes=45)
                 
-                logger.info(f"Successfully authenticated with Salesforce. Instance: {self.instance_url}")
+                logger.info(f"Successfully authenticated with Salesforce using Username-Password. Instance: {self.instance_url}")
             else:
-                error_msg = f"Authentication failed: {response.status_code} - {response.text}"
+                error_msg = f"Username-Password authentication failed: {response.status_code} - {response.text}"
                 logger.error(error_msg)
                 raise SalesforceConnectionError(error_msg)
                 
         except requests.exceptions.RequestException as e:
-            error_msg = f"Network error during authentication: {e}"
+            error_msg = f"Network error during Username-Password authentication: {e}"
             logger.error(error_msg)
             raise SalesforceConnectionError(error_msg)
     
@@ -139,6 +198,7 @@ class SalesforceConnector:
             return {
                 'status': 'success',
                 'connected': True,
+                'auth_type': Config.get_salesforce_auth_type(),
                 'org_info': org_info['records'][0] if org_info['records'] else {},
                 'sobjects_count': len(sobjects.get('sobjects', [])),
                 'instance_url': self.instance_url,

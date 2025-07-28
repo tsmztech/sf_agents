@@ -11,10 +11,12 @@ class Config:
     # OpenAI Configuration
     OPENAI_API_KEY: Optional[str] = os.getenv("OPENAI_API_KEY")
     
-    # Salesforce Connected App Configuration
+    # Salesforce Connected App Configuration (Client Credentials Flow)
     SALESFORCE_INSTANCE_URL: Optional[str] = os.getenv("SALESFORCE_INSTANCE_URL")
     SALESFORCE_CLIENT_ID: Optional[str] = os.getenv("SALESFORCE_CLIENT_ID")
     SALESFORCE_CLIENT_SECRET: Optional[str] = os.getenv("SALESFORCE_CLIENT_SECRET")
+    
+    # Legacy fields (optional - for backward compatibility)
     SALESFORCE_USERNAME: Optional[str] = os.getenv("SALESFORCE_USERNAME")
     SALESFORCE_PASSWORD: Optional[str] = os.getenv("SALESFORCE_PASSWORD")
     SALESFORCE_SECURITY_TOKEN: Optional[str] = os.getenv("SALESFORCE_SECURITY_TOKEN")
@@ -46,32 +48,46 @@ class Config:
     @classmethod
     def validate_salesforce_config(cls) -> bool:
         """Validate Salesforce configuration for connected app."""
-        required_sf_vars = [
+        # Check for Client Credentials Flow (preferred - only 3 fields needed)
+        if cls.SALESFORCE_INSTANCE_URL and cls.SALESFORCE_CLIENT_ID and cls.SALESFORCE_CLIENT_SECRET:
+            return True
+        
+        # Check for Username-Password Flow (legacy - 6 fields needed)
+        legacy_complete = all([
             cls.SALESFORCE_INSTANCE_URL,
             cls.SALESFORCE_CLIENT_ID,
             cls.SALESFORCE_CLIENT_SECRET,
             cls.SALESFORCE_USERNAME,
             cls.SALESFORCE_PASSWORD,
             cls.SALESFORCE_SECURITY_TOKEN
-        ]
+        ])
         
-        missing_vars = []
+        if legacy_complete:
+            return True
+        
+        # Neither flow is properly configured
+        missing_for_client_creds = []
         if not cls.SALESFORCE_INSTANCE_URL:
-            missing_vars.append("SALESFORCE_INSTANCE_URL")
+            missing_for_client_creds.append("SALESFORCE_INSTANCE_URL")
         if not cls.SALESFORCE_CLIENT_ID:
-            missing_vars.append("SALESFORCE_CLIENT_ID")
+            missing_for_client_creds.append("SALESFORCE_CLIENT_ID")
         if not cls.SALESFORCE_CLIENT_SECRET:
-            missing_vars.append("SALESFORCE_CLIENT_SECRET")
-        if not cls.SALESFORCE_USERNAME:
-            missing_vars.append("SALESFORCE_USERNAME")
-        if not cls.SALESFORCE_PASSWORD:
-            missing_vars.append("SALESFORCE_PASSWORD")
-        if not cls.SALESFORCE_SECURITY_TOKEN:
-            missing_vars.append("SALESFORCE_SECURITY_TOKEN")
+            missing_for_client_creds.append("SALESFORCE_CLIENT_SECRET")
         
-        if missing_vars:
-            print(f"Warning: Missing Salesforce configuration variables: {', '.join(missing_vars)}")
-            print("Salesforce org integration will be disabled.")
-            return False
+        print(f"Warning: Missing Salesforce configuration.")
+        print(f"For Client Credentials Flow (recommended), you need: {', '.join(missing_for_client_creds)}")
+        print("Salesforce org integration will be disabled.")
+        return False
+    
+    @classmethod
+    def get_salesforce_auth_type(cls) -> str:
+        """Determine which authentication type to use."""
+        # Prefer Client Credentials if available
+        if cls.SALESFORCE_INSTANCE_URL and cls.SALESFORCE_CLIENT_ID and cls.SALESFORCE_CLIENT_SECRET:
+            # Check if username/password are also provided (would use username-password flow)
+            if cls.SALESFORCE_USERNAME and cls.SALESFORCE_PASSWORD and cls.SALESFORCE_SECURITY_TOKEN:
+                return "username_password"  # Legacy method if all fields provided
+            else:
+                return "client_credentials"  # Preferred method
         
-        return True 
+        return "none" 
