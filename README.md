@@ -1,11 +1,11 @@
 # 🤖 Salesforce AI Agent System
 
-An intelligent agentic AI system built with CrewAI that transforms high-level business requirements into detailed Salesforce implementation plans through natural language conversation.
+An intelligent lightweight AI agent system that transforms high-level business requirements into detailed Salesforce implementation plans through natural language conversation. Built with a custom agent framework optimized for deployment and performance.
 
 [![Deploy to Streamlit Cloud](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://share.streamlit.io)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![CrewAI](https://img.shields.io/badge/CrewAI-0.150.0-green.svg)](https://github.com/joaomdmoura/crewAI)
-[![Streamlit](https://img.shields.io/badge/Streamlit-1.37.0-red.svg)](https://streamlit.io)
+[![OpenAI](https://img.shields.io/badge/OpenAI-1.0+-green.svg)](https://openai.com)
+[![Streamlit](https://img.shields.io/badge/Streamlit-1.28.0-red.svg)](https://streamlit.io)
 
 ## 🚀 Quick Start
 
@@ -24,12 +24,13 @@ streamlit run app.py
 
 ## 🎯 Project Overview
 
-This system uses a collaborative team of AI agents to automate the journey from business requirements to Salesforce configurations. The application provides an intelligent, conversational interface for planning Salesforce implementations.
+This system uses a collaborative team of lightweight AI agents to automate the journey from business requirements to Salesforce configurations. The application provides an intelligent, conversational interface for planning Salesforce implementations with minimal dependencies and maximum performance.
 
 ### Key Features
 
-- **🤖 Intelligent Master Agent**: Powered by CrewAI and GPT-4
-- **🎯 Expert Salesforce Agent**: AI specialist for best practices and gap analysis
+- **🤖 Lightweight Agent Framework**: Custom agent system built directly on OpenAI API
+- **🎯 Specialized Agents**: Schema Expert, Technical Architect, and Dependency Resolver
+- **🔗 Real-time Salesforce Integration**: Live connection to your Salesforce org
 - **💡 Smart Requirement Enhancement**: Automatically identifies and fills gaps
 - **💬 Natural Language Interface**: Streamlit-based GUI for seamless interaction
 - **🧠 Persistent Memory**: Conversation history and context retention
@@ -37,22 +38,29 @@ This system uses a collaborative team of AI agents to automate the journey from 
 - **🔧 User Choice Workflow**: Accept, modify, or skip expert suggestions
 - **📊 Session Management**: Save, load, and export conversation sessions
 - **🔄 Enhanced Conversations**: Clarification → Expert Analysis → Suggestions → Planning
+- **⚡ Fast Deployment**: Minimal dependencies for quick cloud deployment
 
 ## 🏗️ Architecture
+
+The system uses a lightweight, custom agent framework designed for deployment efficiency:
 
 ```
 sf_agents/
 ├── agents/                       # AI Agent modules
 │   ├── __init__.py
+│   ├── simple_agent.py          # Lightweight OpenAI wrapper
 │   ├── memory_manager.py        # Conversation memory & persistence
-│   ├── master_agent.py          # Main requirement deconstructor agent
-│   └── salesforce_expert_agent.py # Expert agent for best practices
+│   ├── master_agent.py          # Main orchestrator agent
+│   ├── salesforce_expert_agent.py # Schema and database expert
+│   ├── technical_architect_agent.py # Technical design specialist
+│   ├── dependency_resolver_agent.py # Task and dependency creator
+│   └── salesforce_connector.py  # Real-time Salesforce integration
 ├── data/                        # Data storage
-│   ├── conversation_history/    # Session conversations
-│   └── implementation_plans/    # Generated plans
-├── app.py                       # Streamlit GUI application
+│   ├── conversation_history/    # Session conversation logs
+│   └── implementation_plans/    # Generated implementation plans
+├── app.py                       # Main Streamlit application
 ├── config.py                    # Configuration management
-└── requirements.txt             # Python dependencies
+└── requirements.txt             # Minimal dependencies
 ```
 
 ## 🚀 Quick Start
@@ -368,4 +376,4 @@ sf_agents/
 
 ---
 
-**Built with ❤️ using CrewAI, Streamlit, and OpenAI GPT-4** 
+**Built with ❤️ using a lightweight agent framework, Streamlit, and OpenAI** 

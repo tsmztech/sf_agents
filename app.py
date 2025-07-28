@@ -3,6 +3,7 @@ import time
 from typing import Dict, Any, Optional
 import json
 from datetime import datetime
+import logging
 
 from agents.master_agent import SalesforceRequirementDeconstructorAgent
 from config import Config
@@ -1170,6 +1171,71 @@ def validate_and_save_config(openai_key, sf_instance, sf_client_id, sf_client_se
                 st.error("❌ Salesforce configuration validation failed")
             return False
 
+def validate_configuration_at_startup():
+    """
+    Validate configuration at application startup to catch issues early.
+    """
+    validation_errors = []
+    
+    # Validate OpenAI configuration
+    try:
+        import openai
+        if hasattr(st.session_state, 'openai_api_key') and st.session_state.openai_api_key:
+            # Test OpenAI connection with a simple call
+            try:
+                client = openai.OpenAI(api_key=st.session_state.openai_api_key)
+                # Make a minimal test call
+                response = client.models.list()
+                logging.info("✅ OpenAI API validation successful")
+            except Exception as e:
+                validation_errors.append(f"OpenAI API validation failed: {str(e)}")
+        else:
+            validation_errors.append("OpenAI API key not configured")
+    except ImportError:
+        validation_errors.append("OpenAI library not installed")
+    
+    # Validate Salesforce configuration
+    try:
+        from agents.salesforce_connector import SalesforceConnector
+        if (hasattr(st.session_state, 'sf_client_id') and st.session_state.sf_client_id and
+            hasattr(st.session_state, 'sf_client_secret') and st.session_state.sf_client_secret):
+            
+            # Test Salesforce connection
+            try:
+                connector = SalesforceConnector()
+                test_result = connector.test_connection()
+                if test_result.get('success'):
+                    logging.info("✅ Salesforce connection validation successful")
+                else:
+                    validation_errors.append(f"Salesforce connection failed: {test_result.get('error', 'Unknown error')}")
+            except Exception as e:
+                validation_errors.append(f"Salesforce validation failed: {str(e)}")
+        else:
+            validation_errors.append("Salesforce credentials not properly configured")
+    except ImportError:
+        validation_errors.append("Salesforce connector not available")
+    
+    return validation_errors
+
+def display_startup_validation_results(validation_errors):
+    """
+    Display validation results in the sidebar.
+    """
+    with st.sidebar:
+        st.subheader("🔍 Startup Validation")
+        
+        if validation_errors:
+            st.error("❌ Configuration Issues Detected:")
+            for error in validation_errors:
+                st.error(f"• {error}")
+            
+            st.warning("⚠️ Some features may not work properly. Please check your configuration.")
+            
+            if st.button("🔄 Retry Validation"):
+                st.rerun()
+        else:
+            st.success("✅ All systems validated successfully")
+
 def _validate_env_config():
     """Validate environment variables for test mode."""
     from config import Config
@@ -1385,8 +1451,17 @@ def main():
     if st.session_state.sf_security_token:
         os.environ['SALESFORCE_SECURITY_TOKEN'] = st.session_state.sf_security_token
     
+    # Perform startup validation
+    if not hasattr(st.session_state, 'startup_validation_complete'):
+        validation_errors = validate_configuration_at_startup()
+        st.session_state.startup_validation_complete = True
+        st.session_state.validation_errors = validation_errors
+    
     # Display sidebar
     display_sidebar()
+    
+    # Display startup validation results in sidebar
+    display_startup_validation_results(st.session_state.get('validation_errors', []))
     
     # Handle pending next phase (automatic progression after user responses)
     if st.session_state.pending_next_phase and not st.session_state.processing:

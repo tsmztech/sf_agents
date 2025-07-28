@@ -5,6 +5,8 @@ import logging
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
 from config import Config
+import functools
+import random
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -12,7 +14,64 @@ logger = logging.getLogger(__name__)
 
 class SalesforceConnectionError(Exception):
     """Custom exception for Salesforce connection issues."""
-    pass
+    def __init__(self, message: str, status_code: Optional[int] = None, retry_after: Optional[int] = None):
+        super().__init__(message)
+        self.status_code = status_code
+        self.retry_after = retry_after
+
+def retry_with_backoff(max_attempts: int = 3, backoff_factor: float = 2.0, max_delay: float = 60.0):
+    """
+    Decorator that implements exponential backoff retry logic.
+    
+    Args:
+        max_attempts: Maximum number of retry attempts
+        backoff_factor: Multiplier for delay between attempts
+        max_delay: Maximum delay between attempts in seconds
+    """
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            last_exception = None
+            
+            for attempt in range(max_attempts):
+                try:
+                    return func(*args, **kwargs)
+                    
+                except (requests.exceptions.RequestException, SalesforceConnectionError) as e:
+                    last_exception = e
+                    
+                    # Don't retry on authentication errors (401)
+                    if hasattr(e, 'response') and e.response and e.response.status_code == 401:
+                        logger.error(f"Authentication failed in {func.__name__}: {e}")
+                        raise
+                    
+                    # Don't retry on client errors (4xx except 429)
+                    if hasattr(e, 'response') and e.response and 400 <= e.response.status_code < 500 and e.response.status_code != 429:
+                        logger.error(f"Client error in {func.__name__}: {e}")
+                        raise
+                    
+                    if attempt < max_attempts - 1:  # Don't sleep on last attempt
+                        # Calculate delay with jitter
+                        delay = min(backoff_factor ** attempt + random.uniform(0, 1), max_delay)
+                        
+                        # Check for Retry-After header
+                        if hasattr(e, 'response') and e.response and 'Retry-After' in e.response.headers:
+                            try:
+                                retry_after = int(e.response.headers['Retry-After'])
+                                delay = min(retry_after, max_delay)
+                            except ValueError:
+                                pass
+                        
+                        logger.warning(f"Attempt {attempt + 1} failed for {func.__name__}: {e}. Retrying in {delay:.2f} seconds...")
+                        time.sleep(delay)
+                    else:
+                        logger.error(f"All {max_attempts} attempts failed for {func.__name__}")
+            
+            # Re-raise the last exception if all attempts failed
+            raise last_exception
+        
+        return wrapper
+    return decorator
 
 class SalesforceConnector:
     """
@@ -47,6 +106,7 @@ class SalesforceConnector:
         else:
             raise SalesforceConnectionError("No valid Salesforce authentication configuration found")
     
+    @retry_with_backoff(max_attempts=3, backoff_factor=1.5)
     def _authenticate_client_credentials(self) -> None:
         """
         Authenticate using OAuth 2.0 Client Credentials Flow (Server-to-Server).
@@ -61,36 +121,43 @@ class SalesforceConnector:
             
             auth_url = f"{auth_base_url}/services/oauth2/token"
             
-            # Prepare authentication data for Client Credentials Flow
             auth_data = {
                 'grant_type': 'client_credentials',
                 'client_id': Config.SALESFORCE_CLIENT_ID,
                 'client_secret': Config.SALESFORCE_CLIENT_SECRET
             }
             
-            logger.info("Authenticating with Salesforce using Client Credentials Flow...")
+            logger.info("Attempting Client Credentials authentication...")
             response = self.session.post(auth_url, data=auth_data)
             
             if response.status_code == 200:
                 token_data = response.json()
                 self.access_token = token_data['access_token']
-                # For client credentials, use the configured instance URL
-                self.instance_url = Config.SALESFORCE_INSTANCE_URL
                 
-                # Calculate token expiration (Client credentials tokens typically last longer)
-                self.token_expires_at = datetime.now() + timedelta(hours=1, minutes=45)
+                # For client credentials, use configured instance URL or fallback to login response
+                self.instance_url = Config.SALESFORCE_INSTANCE_URL or token_data.get('instance_url', auth_base_url)
                 
-                logger.info(f"Successfully authenticated with Salesforce using Client Credentials. Instance: {self.instance_url}")
+                # Client credentials tokens typically don't expire quickly, but we'll set a reasonable expiry
+                self.token_expires_at = datetime.now() + timedelta(hours=2)
+                
+                logger.info("✅ Client Credentials authentication successful")
+                logger.info(f"Instance URL: {self.instance_url}")
+                
             else:
-                error_msg = f"Client Credentials authentication failed: {response.status_code} - {response.text}"
-                logger.error(error_msg)
-                raise SalesforceConnectionError(error_msg)
+                error_detail = self._parse_auth_error(response)
+                raise SalesforceConnectionError(
+                    f"Client Credentials authentication failed: {error_detail}",
+                    status_code=response.status_code
+                )
                 
         except requests.exceptions.RequestException as e:
-            error_msg = f"Network error during Client Credentials authentication: {e}"
-            logger.error(error_msg)
-            raise SalesforceConnectionError(error_msg)
-    
+            logger.error(f"Network error during Client Credentials authentication: {e}")
+            raise SalesforceConnectionError(f"Network error during authentication: {str(e)}")
+        except Exception as e:
+            logger.error(f"Unexpected error during Client Credentials authentication: {e}")
+            raise SalesforceConnectionError(f"Authentication failed: {str(e)}")
+
+    @retry_with_backoff(max_attempts=3, backoff_factor=1.5)
     def _authenticate_username_password(self) -> None:
         """
         Authenticate using OAuth 2.0 Username-Password Flow (Legacy).
@@ -145,6 +212,7 @@ class SalesforceConnector:
             logger.info("Token expired or invalid, re-authenticating...")
             self._authenticate()
     
+    @retry_with_backoff()
     def _make_api_request(self, endpoint: str, method: str = 'GET', params: Dict = None, data: Dict = None) -> Dict:
         """
         Make authenticated API request to Salesforce with retry logic.
