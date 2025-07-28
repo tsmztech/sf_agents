@@ -29,6 +29,13 @@ class Config:
     DEBUG: bool = os.getenv("DEBUG", "True").lower() == "true"
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
     
+    # Application Metadata
+    APP_NAME: str = "Salesforce AI Agent System"
+    APP_VERSION: str = "1.0.0"
+    AUTHOR_NAME: str = "Tapas Mukherjee"
+    AUTHOR_EMAIL: str = os.getenv("AUTHOR_EMAIL", "")
+    APP_DESCRIPTION: str = "An intelligent agentic AI system for Salesforce implementation planning"
+    
     # Test Configuration Flag
     # When True: Use environment variables from .env file (bypass UI configuration)
     # When False: Use UI configuration popup (production mode)

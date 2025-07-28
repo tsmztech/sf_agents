@@ -1,10 +1,30 @@
-# ⚡ Salesforce AI Agent System
+# 🤖 Salesforce AI Agent System
 
 An intelligent agentic AI system built with CrewAI that transforms high-level business requirements into detailed Salesforce implementation plans through natural language conversation.
 
+[![Deploy to Streamlit Cloud](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://share.streamlit.io)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![CrewAI](https://img.shields.io/badge/CrewAI-0.150.0-green.svg)](https://github.com/joaomdmoura/crewAI)
+[![Streamlit](https://img.shields.io/badge/Streamlit-1.37.0-red.svg)](https://streamlit.io)
+
+## 🚀 Quick Start
+
+### 📺 Live Demo
+**[Try the application online →](https://sf-agents.streamlit.app)** *(Replace with your actual deployment URL)*
+
+### 💻 Local Development
+```bash
+git clone https://github.com/yourusername/sf_agents.git
+cd sf_agents
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install -r requirements.txt
+streamlit run app.py
+```
+
 ## 🎯 Project Overview
 
-This system uses a collaborative team of AI agents to automate the journey from business requirements to Salesforce configurations. **Phase 1** focuses on requirement gathering, clarification, and implementation planning.
+This system uses a collaborative team of AI agents to automate the journey from business requirements to Salesforce configurations. The application provides an intelligent, conversational interface for planning Salesforce implementations.
 
 ### Key Features
 
@@ -273,6 +293,78 @@ This project is built for demonstration and educational purposes.
 ## 🤝 Contributing
 
 This is a demonstration project. For questions or suggestions, please refer to the project documentation.
+
+---
+
+## 🌐 Deployment
+
+### Streamlit Community Cloud (Free)
+1. Fork this repository
+2. Visit [share.streamlit.io](https://share.streamlit.io)
+3. Connect your GitHub account
+4. Select this repository
+5. Deploy automatically
+
+### Railway ($5/month)
+1. Visit [railway.app](https://railway.app)
+2. Connect your GitHub account
+3. Deploy this repository
+4. Set environment variables in Railway dashboard
+
+### Heroku
+1. Create Heroku app
+2. Connect GitHub repository  
+3. Set environment variables
+4. Deploy from Heroku dashboard
+
+See [deployment-guide.md](deployment-guide.md) for detailed instructions.
+
+## 🔧 Configuration
+
+### Production Mode (Default)
+- App shows configuration popup for API keys
+- No environment variables needed
+- Perfect for end users
+
+### Development Mode
+- Set `USE_ENV_CONFIG=True` in `.env`
+- Uses environment variables directly
+- Perfect for development/testing
+
+## 🔐 Security
+
+- ✅ No sensitive data in code
+- ✅ Environment variables properly ignored
+- ✅ In-app credential collection
+- ✅ Secure API key handling
+
+## 📁 Project Structure
+
+```
+sf_agents/
+├── app.py                          # Main Streamlit application
+├── config.py                       # Configuration management
+├── requirements.txt                # Python dependencies
+├── Procfile                        # Heroku deployment
+├── runtime.txt                     # Python version
+├── railway.json                    # Railway deployment
+├── .streamlit/config.toml          # Streamlit configuration
+├── agents/                         # AI agent modules
+│   ├── master_agent.py             # Main orchestration agent
+│   ├── salesforce_expert_agent.py  # Schema specialist agent
+│   ├── technical_architect_agent.py # Architecture design agent
+│   ├── dependency_resolver_agent.py # Task planning agent
+│   ├── memory_manager.py           # Conversation memory
+│   └── salesforce_connector.py     # Salesforce API integration
+└── data/                           # Data storage
+    ├── conversation_history/       # Chat sessions
+    └── implementation_plans/       # Generated plans
+```
+
+## 👨‍💻 Author
+
+**Tapas Mukherjee**  
+*AI Engineer & Salesforce Specialist*
 
 ---
 

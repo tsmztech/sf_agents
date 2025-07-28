@@ -9,10 +9,21 @@ from config import Config
 
 # Configure Streamlit page
 st.set_page_config(
-    page_title="Salesforce AI Agent System",
+    page_title=Config.APP_NAME,
     page_icon="⚡",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
+    menu_items={
+        'Get Help': 'https://github.com/your-repo/issues',
+        'Report a bug': 'https://github.com/your-repo/issues',
+        'About': f"""
+        ## {Config.APP_NAME}
+        **Version:** {Config.APP_VERSION}  
+        **Description:** {Config.APP_DESCRIPTION}
+        
+        Built with ❤️ using CrewAI, Streamlit, and OpenAI GPT-4
+        """
+    }
 )
 
 # Enhanced CSS for better chat styling
@@ -509,13 +520,16 @@ def display_agent_activities():
 def display_sidebar():
     """Display the sidebar with session information and controls."""
     with st.sidebar:
-        st.markdown('''
+        st.markdown(f'''
         <div style="text-align: center; padding: 0.5rem 0; margin-bottom: 1rem;">
             <div style="font-size: 1.2rem; font-weight: bold; color: #0176D3;">
-                ⚡ Salesforce AI Agent System
+                ⚡ {Config.APP_NAME}
             </div>
             <div style="font-size: 0.8rem; color: #666; margin-top: 0.2rem;">
-                Transforming Requirements into Solutions
+                {Config.APP_DESCRIPTION}
+            </div>
+            <div style="font-size: 0.7rem; color: #888; margin-top: 0.3rem;">
+                v{Config.APP_VERSION}
             </div>
         </div>
         ''', unsafe_allow_html=True)
@@ -964,6 +978,15 @@ def show_configuration_popup():
                     """)
                 
                 submitted = st.form_submit_button("🚀 Connect & Validate", use_container_width=True, type="primary")
+                
+                # App information footer
+                st.markdown(f"""
+                <div style="text-align: center; margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #eee;">
+                    <small style="color: #666;">
+                        {Config.APP_NAME} v{Config.APP_VERSION}
+                    </small>
+                </div>
+                """, unsafe_allow_html=True)
                 
                 if submitted:
                     return validate_and_save_config(
