@@ -11,12 +11,20 @@ import time
 class SimpleAgent:
     """A simple agent that uses OpenAI directly."""
     
-    def __init__(self, role: str, goal: str, backstory: str, model: str = "gpt-4"):
+    def __init__(self, role: str, goal: str, backstory: str, model: str = "gpt-3.5-turbo"):
         self.role = role
         self.goal = goal
         self.backstory = backstory
         self.model = model
-        self.client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        # Initialize OpenAI client (compatible with both old and new versions)
+        try:
+            # Try new API format first
+            self.client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+            self.use_new_api = True
+        except:
+            # Fallback to old API format
+            openai.api_key = os.getenv("OPENAI_API_KEY")
+            self.use_new_api = False
     
     def execute_task(self, task_description: str, context: str = "") -> str:
         """Execute a task using OpenAI."""
@@ -40,17 +48,30 @@ class SimpleAgent:
         """
         
         try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
-                ],
-                temperature=0.7,
-                max_tokens=2000
-            )
-            
-            return response.choices[0].message.content
+            if self.use_new_api:
+                # New OpenAI API (1.0+)
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt}
+                    ],
+                    temperature=0.7,
+                    max_tokens=2000
+                )
+                return response.choices[0].message.content
+            else:
+                # Old OpenAI API (0.28.x)
+                response = openai.ChatCompletion.create(
+                    model=self.model,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt}
+                    ],
+                    temperature=0.7,
+                    max_tokens=2000
+                )
+                return response.choices[0].message.content
             
         except Exception as e:
             return f"Error executing task: {str(e)}"
