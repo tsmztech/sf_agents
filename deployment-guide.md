@@ -140,6 +140,42 @@ echo "python-3.11.0" > runtime.txt
 3. **Set USE_ENV_CONFIG=False** for production deployment
 4. **Keep sensitive environment variables in platform settings**, not in code
 
+## 🔧 **Troubleshooting Common Deployment Issues**
+
+### Python 3.13 Compatibility Issues
+
+If you see errors like "PyO3's maximum supported version (3.12)" or "pydantic-core build failed":
+
+**Solution 1: Force Python 3.11**
+- Add `runtime.txt` with `python-3.11`
+- Use compatible package versions
+
+**Solution 2: Alternative Requirements**
+If the deployment still fails, try this minimal requirements.txt:
+```
+streamlit==1.35.0
+python-dotenv==1.0.0
+requests>=2.31.0
+simple-salesforce>=1.12.0
+openai>=1.0.0
+pydantic>=2.5.0,<2.8.0
+typing-extensions>=4.0.0
+```
+
+### Rust Compilation Errors
+
+If you see "maturin failed" or Rust-related errors:
+- Remove or downgrade packages that require Rust compilation
+- Use `packages.txt` with system dependencies
+- Consider using pre-compiled wheels
+
+### Memory/Resource Issues
+
+For "out of memory" errors:
+- Reduce package versions
+- Remove unused dependencies
+- Use Heroku or Railway instead of Streamlit Cloud
+
 ## 📝 **Next Steps**
 
 1. Choose deployment platform
