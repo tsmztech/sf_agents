@@ -79,8 +79,9 @@ class SalesforceRequirementDeconstructorAgent:
         Returns:
             Dictionary containing agent response, state, and any actions taken
         """
-        # Store user message
-        self.memory_manager.add_message("user", user_input, "requirement")
+        # Only store user message if it's not empty (to avoid empty messages during automated transitions)
+        if user_input.strip():
+            self.memory_manager.add_message("user", user_input, "requirement")
         
         # Determine conversation state and generate appropriate response
         if self.conversation_state == "initial":
@@ -336,22 +337,40 @@ class SalesforceRequirementDeconstructorAgent:
         conversation_context = self.memory_manager.get_conversation_context()
         current_requirements = self.memory_manager.requirements_extracted
         
+        # Extract mentioned objects from conversation
+        mentioned_objects = self._extract_mentioned_objects(conversation_context)
+        
         # Consult with the expert agent
-        self.memory_manager.add_message("system", "🔍 Consulting with Salesforce Expert Agent to identify gaps and enhancements...", "expert_analysis")
+        if self.expert_agent.sf_connected:
+            self.memory_manager.add_message("system", "🔍 Consulting with Salesforce Expert Agent (🟢 Connected to your org) to analyze requirements...", "expert_analysis")
+        else:
+            self.memory_manager.add_message("system", "🔍 Consulting with Salesforce Expert Agent (🔴 Offline mode) to identify gaps and enhancements...", "expert_analysis")
         
         try:
-            # Get expert analysis
-            expert_analysis = self.expert_agent.analyze_requirements_and_suggest_improvements(
+            # Get expert analysis with org context
+            expert_analysis = self.expert_agent.analyze_with_org_context(
                 conversation_context, 
-                current_requirements
+                current_requirements,
+                mentioned_objects
             )
+            
+            # Validate that we got meaningful analysis results
+            if not expert_analysis or not any(expert_analysis.get(key) for key in ['requirement_gaps', 'best_practices', 'suggested_enhancements']):
+                # Fallback to basic expert analysis if org context fails
+                expert_analysis = self.expert_agent.analyze_requirements_and_suggest_improvements(
+                    conversation_context, 
+                    current_requirements
+                )
             
             self.expert_suggestions = expert_analysis
             
             # Create a user-friendly presentation of the expert suggestions
             suggestions_summary = self._format_expert_suggestions(expert_analysis)
             
-            response = f"""🎯 **Expert Analysis Complete!**
+            # Show connection status in the response
+            connection_status = "🟢 Connected to your Salesforce org" if self.expert_agent.sf_connected else "🔴 Operating in offline mode"
+            
+            response = f"""🎯 **Expert Analysis Complete!** ({connection_status})
 
 I've consulted with our Salesforce Expert Agent to analyze your requirements and identify potential enhancements. Here's what we found:
 
@@ -381,7 +400,16 @@ What would you like to do with these expert suggestions?"""
             }
             
         except Exception as e:
-            error_response = f"I encountered an issue while consulting with the expert agent: {e}. Let me proceed with creating a plan based on your current requirements."
+            import traceback
+            error_details = traceback.format_exc()
+            print(f"Expert analysis error: {error_details}")  # For debugging
+            
+            error_response = f"""I encountered an issue while consulting with the expert agent: {str(e)}
+
+Let me proceed with creating a technical implementation plan based on your current requirements. 
+
+Would you like me to continue with the plan creation, or would you prefer to try the expert analysis again?"""
+            
             self.memory_manager.add_message("agent", error_response, "error")
             self.conversation_state = "planning"
             return {
@@ -1028,7 +1056,7 @@ What would you like to do with your implementation plan?"""
         """Format expert suggestions in a user-friendly way."""
         
         if not expert_analysis:
-            return "No specific suggestions available."
+            return "Expert analysis completed but no specific suggestions were generated. Your requirements appear comprehensive as stated."
         
         formatted = []
         
@@ -1056,7 +1084,17 @@ What would you like to do with your implementation plan?"""
             if len(expert_analysis["suggested_enhancements"]) > 3:
                 formatted.append(f"   • ...and {len(expert_analysis['suggested_enhancements']) - 3} more")
         
-        return "\n".join(formatted) if formatted else "The expert analysis is still processing. Please try again."
+        # Show org context info if available
+        if expert_analysis.get("org_connected") and expert_analysis.get("org_context"):
+            formatted.append("\n📊 **Org Analysis:**")
+            org_context = expert_analysis["org_context"]
+            for obj_name, obj_info in list(org_context.items())[:2]:  # Show top 2 objects
+                if obj_info.get("exists"):
+                    formatted.append(f"   • {obj_name}: Found in org with {obj_info.get('schema_summary', {}).get('fields_count', 'unknown')} fields")
+                else:
+                    formatted.append(f"   • {obj_name}: Not found in org - will need to be created")
+        
+        return "\n".join(formatted) if formatted else "Expert analysis completed. Your requirements appear comprehensive and well-defined as stated."
     
     def _create_numbered_suggestions_list(self) -> str:
         """Create a numbered list of suggestions for easy selection."""
@@ -1128,4 +1166,68 @@ VALUE ENHANCEMENTS ADDED:
     
     def get_session_id(self) -> str:
         """Get the current session ID."""
-        return self.memory_manager.session_id 
+        return self.memory_manager.session_id
+    
+    def _extract_mentioned_objects(self, conversation_context: str) -> List[str]:
+        """Extract Salesforce object names mentioned in the conversation."""
+        import re
+        
+        # Common Salesforce standard objects
+        standard_objects = [
+            'Account', 'Contact', 'Lead', 'Opportunity', 'Case', 'Task', 'Event',
+            'Campaign', 'Product2', 'PricebookEntry', 'Quote', 'Order', 'OrderItem',
+            'Asset', 'Contract', 'User', 'Profile', 'PermissionSet', 'Role',
+            'Territory', 'Partner', 'Solution', 'Idea', 'Knowledge__kav'
+        ]
+        
+        # Look for custom object patterns (ending with __c)
+        custom_object_pattern = r'\b\w+__c\b'
+        
+        mentioned_objects = []
+        
+        # Find standard objects mentioned (case-insensitive)
+        for obj in standard_objects:
+            if re.search(rf'\b{re.escape(obj)}\b', conversation_context, re.IGNORECASE):
+                mentioned_objects.append(obj)
+        
+        # Find custom objects mentioned
+        custom_matches = re.findall(custom_object_pattern, conversation_context, re.IGNORECASE)
+        mentioned_objects.extend([match for match in custom_matches if match not in mentioned_objects])
+        
+        # Look for common business terms that might map to objects
+        business_term_mapping = {
+            'customer': 'Account',
+            'client': 'Account', 
+            'company': 'Account',
+            'person': 'Contact',
+            'contact': 'Contact',
+            'lead': 'Lead',
+            'prospect': 'Lead',
+            'deal': 'Opportunity',
+            'sale': 'Opportunity',
+            'opportunity': 'Opportunity',
+            'ticket': 'Case',
+            'case': 'Case',
+            'support': 'Case',
+            'product': 'Product2',
+            'item': 'Product2',
+            'campaign': 'Campaign',
+            'marketing': 'Campaign'
+        }
+        
+        for term, obj in business_term_mapping.items():
+            if re.search(rf'\b{re.escape(term)}\b', conversation_context, re.IGNORECASE):
+                if obj not in mentioned_objects:
+                    mentioned_objects.append(obj)
+        
+        return list(set(mentioned_objects))  # Remove duplicates
+    
+    def trigger_expert_analysis(self) -> Dict[str, Any]:
+        """Explicitly trigger expert analysis without adding user input to conversation."""
+        if self.conversation_state != "expert_analysis":
+            return {
+                "error": f"Cannot trigger expert analysis in state: {self.conversation_state}",
+                "state": self.conversation_state
+            }
+        
+        return self._handle_expert_analysis() 

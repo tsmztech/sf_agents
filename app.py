@@ -500,6 +500,46 @@ def display_sidebar():
             st.error("❌ OpenAI API key required")
             st.info("Please set OPENAI_API_KEY in your .env file")
         
+        # Salesforce connection status
+        if Config.validate_salesforce_config():
+            if st.session_state.agent and hasattr(st.session_state.agent.expert_agent, 'sf_connected'):
+                if st.session_state.agent.expert_agent.sf_connected:
+                    st.success("🟢 Salesforce org connected")
+                    if st.button("🔍 Test SF Connection"):
+                        with st.spinner("Testing Salesforce connection..."):
+                            test_result = st.session_state.agent.expert_agent.sf_connector.test_connection()
+                            if test_result.get('connected'):
+                                org_info = test_result.get('org_info', {})
+                                st.success(f"✅ Connected to: {org_info.get('Name', 'Unknown Org')}")
+                                st.info(f"📊 Available objects: {test_result.get('sobjects_count', 'Unknown')}")
+                            else:
+                                st.error(f"❌ Connection failed: {test_result.get('error')}")
+                else:
+                    st.warning("🟡 Salesforce configured but not connected")
+            else:
+                st.info("🔵 Salesforce will connect when agent starts")
+        else:
+            st.info("🔴 Salesforce not configured")
+            with st.expander("ℹ️ Salesforce Configuration Help"):
+                st.markdown("""
+                To enable real-time Salesforce org access, add these variables to your `.env` file:
+                
+                ```
+                SALESFORCE_INSTANCE_URL=https://your-instance.salesforce.com
+                SALESFORCE_CLIENT_ID=your_connected_app_client_id
+                SALESFORCE_CLIENT_SECRET=your_connected_app_client_secret
+                SALESFORCE_USERNAME=your_username
+                SALESFORCE_PASSWORD=your_password
+                SALESFORCE_SECURITY_TOKEN=your_security_token
+                SALESFORCE_DOMAIN=login  # or 'test' for sandbox
+                ```
+                
+                **How to set up:**
+                1. Create a Connected App in Salesforce (Setup → App Manager)
+                2. Enable OAuth Settings with scopes: `api`, `refresh_token`
+                3. Get your security token (Settings → Reset Security Token)
+                """)
+        
         # Session information
         st.subheader("📊 Session Info")
         if st.session_state.current_session_id:
@@ -696,13 +736,15 @@ def process_user_input(user_input: str):
             add_agent_activity("Expert Agent", "is identifying gaps and enhancements...")
             st.info("🔍 Consulting with Salesforce Expert Agent...")
             
-            # Trigger expert analysis
+            # Trigger expert analysis using the dedicated method
             expert_start = time.time()
-            expert_result = st.session_state.agent.process_user_input("")
+            expert_result = st.session_state.agent.trigger_expert_analysis()
             complete_agent_activity("Expert Agent")
             
             if expert_result.get('type') == 'expert_suggestions':
                 st.success("💡 Expert suggestions ready for your review!")
+            elif expert_result.get('type') == 'error_fallback':
+                st.warning("⚠️ Expert analysis encountered issues, but we can still proceed with implementation planning.")
         
         # Update conversation history
         st.session_state.conversation_history = st.session_state.agent.get_conversation_history()

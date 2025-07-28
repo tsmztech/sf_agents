@@ -2,6 +2,18 @@ from typing import Dict, Any, List, Optional
 from crewai import Agent, Task, Crew
 from langchain_openai import ChatOpenAI
 from config import Config
+import json
+import logging
+
+# Import the new Salesforce connector
+try:
+    from .salesforce_connector import SalesforceConnector, SalesforceConnectionError
+except ImportError:
+    # Fallback if connector not available
+    SalesforceConnector = None
+    SalesforceConnectionError = Exception
+
+logger = logging.getLogger(__name__)
 
 class SalesforceExpertAgent:
     """
@@ -18,8 +30,41 @@ class SalesforceExpertAgent:
             temperature=0.2  # Lower temperature for more consistent expert advice
         )
         
+        # Initialize Salesforce connector if configuration is available
+        self.sf_connector = None
+        self.sf_connected = False
+        self._initialize_salesforce_connection()
+        
         # Initialize the Crew AI expert agent
         self._initialize_agent()
+    
+    def _initialize_salesforce_connection(self):
+        """Initialize Salesforce connection if credentials are available."""
+        if SalesforceConnector is None:
+            logger.warning("SalesforceConnector not available")
+            return
+        
+        if not Config.validate_salesforce_config():
+            logger.info("Salesforce configuration not complete - operating in offline mode")
+            return
+        
+        try:
+            self.sf_connector = SalesforceConnector()
+            connection_test = self.sf_connector.test_connection()
+            
+            if connection_test.get('connected'):
+                self.sf_connected = True
+                org_info = connection_test.get('org_info', {})
+                logger.info(f"Successfully connected to Salesforce org: {org_info.get('Name', 'Unknown')}")
+                logger.info(f"Instance: {connection_test.get('instance_url')}")
+                logger.info(f"Available objects: {connection_test.get('sobjects_count', 'Unknown')}")
+            else:
+                logger.error(f"Failed to connect to Salesforce: {connection_test.get('error')}")
+                
+        except Exception as e:
+            logger.error(f"Error initializing Salesforce connection: {e}")
+            self.sf_connector = None
+            self.sf_connected = False
     
     def _initialize_agent(self):
         """Initialize the Crew AI expert agent with Salesforce expertise."""
@@ -376,4 +421,352 @@ class SalesforceExpertAgent:
             "industry": industry,
             "use_case": use_case,
             "recommendations": str(result)
-        } 
+        }
+    
+    def analyze_with_org_context(
+        self, 
+        conversation_context: str, 
+        current_requirements: List[Dict[str, Any]],
+        mentioned_objects: List[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Analyze requirements with real-time Salesforce org context.
+        
+        Args:
+            conversation_context: Full conversation history
+            current_requirements: List of extracted requirements
+            mentioned_objects: List of object names mentioned in requirements
+            
+        Returns:
+            Enhanced analysis with real org context
+        """
+        
+        # Get real-time org data if connected
+        org_context_data = self._get_org_context(mentioned_objects or [])
+        
+        # Determine analysis mode
+        analysis_mode = "REAL-TIME ORG ANALYSIS" if self.sf_connected else "BEST PRACTICE ANALYSIS"
+        
+        task = Task(
+            description=f"""
+            As a Senior Salesforce Solution Architect, analyze the requirements with {analysis_mode}.
+            
+            CONNECTION STATUS: {"🟢 CONNECTED TO SALESFORCE ORG" if self.sf_connected else "🔴 OFFLINE MODE"}
+            
+            CONVERSATION CONTEXT:
+            {conversation_context}
+            
+            CURRENT REQUIREMENTS:
+            {self._format_requirements(current_requirements)}
+            
+            {"REAL-TIME ORG SCHEMA DATA:" if self.sf_connected else ""}
+            {json.dumps(org_context_data, indent=2) if org_context_data else ""}
+            
+            ENHANCED ANALYSIS TASKS:
+            
+            1. **Real-Time Object Analysis** (if connected):
+               - Verify which objects/fields already exist in the org
+               - Identify existing relationships and dependencies
+               - Check current field types and constraints
+               - Analyze existing data patterns and usage
+            
+            2. **Gap Analysis with Org Context**:
+               - What needs to be created vs. what exists
+               - Missing relationships and data connections
+               - Security and permission gaps based on current setup
+               - Data migration and integration requirements
+            
+            3. **Optimization Opportunities**:
+               - Leverage existing org infrastructure
+               - Optimize based on current data volumes and patterns
+               - Suggest improvements to existing schema
+               - Identify unused or underutilized objects/fields
+            
+            4. **Implementation Feasibility**:
+               - Assess complexity based on current org state
+               - Identify potential conflicts with existing setup
+               - Recommend phased implementation approach
+               - Highlight technical risks and mitigation strategies
+            
+            RESPONSE FORMAT:
+            Provide analysis in structured format:
+            
+            **ORG ANALYSIS SUMMARY:**
+            - [Summary of current org state and readiness]
+            
+            **EXISTING INFRASTRUCTURE:**
+            - [List what already exists and can be leveraged]
+            
+            **REQUIRED NEW COMPONENTS:**
+            - [List what needs to be created]
+            
+            **OPTIMIZATION RECOMMENDATIONS:**
+            - [Suggestions to improve existing setup]
+            
+            **IMPLEMENTATION STRATEGY:**
+            - [Phased approach with priorities and dependencies]
+            
+            **RISK ASSESSMENT:**
+            - [Potential issues and mitigation strategies]
+            
+            Be specific about object names, field types, and relationships.
+            Include business justification for each recommendation.
+            """,
+            expected_output="Comprehensive org-aware analysis with specific recommendations based on real Salesforce data.",
+            agent=self.agent
+        )
+        
+        # Execute the analysis
+        crew = Crew(agents=[self.agent], tasks=[task])
+        result = crew.kickoff()
+        
+        # Parse and enhance the expert analysis
+        try:
+            analysis = self._parse_expert_analysis(str(result))
+            analysis['org_connected'] = self.sf_connected
+            analysis['org_context'] = org_context_data
+            
+            # Ensure we have at least some basic content
+            if not any(analysis.get(key) for key in ['requirement_gaps', 'best_practices', 'suggested_enhancements']):
+                # Create some basic suggestions if parsing failed
+                analysis = {
+                    'requirement_gaps': ['Consider data validation rules', 'Define user access permissions', 'Plan for data backup and recovery'],
+                    'best_practices': ['Use standard Salesforce naming conventions', 'Implement proper field-level security', 'Create comprehensive test data'],
+                    'suggested_enhancements': ['Add workflow automation', 'Include reporting dashboards', 'Consider mobile optimization'],
+                    'org_connected': self.sf_connected,
+                    'org_context': org_context_data,
+                    'full_analysis': str(result)
+                }
+            
+            return analysis
+            
+        except Exception as e:
+            logger.error(f"Error parsing expert analysis: {e}")
+            # Return basic fallback analysis
+            return {
+                'requirement_gaps': ['Review data model completeness', 'Validate security requirements'],
+                'best_practices': ['Follow Salesforce development best practices', 'Implement proper testing'],
+                'suggested_enhancements': ['Consider automation opportunities', 'Plan for user training'],
+                'org_connected': self.sf_connected,
+                'org_context': org_context_data,
+                'full_analysis': str(result),
+                'parsing_error': str(e)
+            }
+    
+    def validate_objects_in_org(self, object_names: List[str]) -> Dict[str, Any]:
+        """
+        Validate if specified objects exist in the connected org.
+        
+        Args:
+            object_names: List of object API names to validate
+            
+        Returns:
+            Validation results with details about each object
+        """
+        if not self.sf_connected:
+            return {
+                'connected': False,
+                'message': 'Not connected to Salesforce org - validation unavailable'
+            }
+        
+        validation_results = {
+            'connected': True,
+            'validated_objects': {},
+            'summary': {
+                'total_checked': len(object_names),
+                'existing': 0,
+                'missing': 0,
+                'errors': 0
+            }
+        }
+        
+        for obj_name in object_names:
+            try:
+                # Try to get object schema
+                schema = self.sf_connector.get_object_schema(obj_name)
+                validation_results['validated_objects'][obj_name] = {
+                    'exists': True,
+                    'label': schema.get('label'),
+                    'custom': schema.get('custom', False),
+                    'fields_count': len(schema.get('fields', [])),
+                    'relationships_count': len(schema.get('relationships', [])),
+                    'permissions': {
+                        'createable': schema.get('createable', False),
+                        'updateable': schema.get('updateable', False),
+                        'deletable': schema.get('deletable', False)
+                    }
+                }
+                validation_results['summary']['existing'] += 1
+                
+            except SalesforceConnectionError as e:
+                if "NOT_FOUND" in str(e) or "INVALID_TYPE" in str(e):
+                    validation_results['validated_objects'][obj_name] = {
+                        'exists': False,
+                        'error': 'Object not found in org'
+                    }
+                    validation_results['summary']['missing'] += 1
+                else:
+                    validation_results['validated_objects'][obj_name] = {
+                        'exists': None,
+                        'error': str(e)
+                    }
+                    validation_results['summary']['errors'] += 1
+        
+        return validation_results
+    
+    def get_field_recommendations(self, object_name: str, field_requirements: List[Dict]) -> Dict[str, Any]:
+        """
+        Get field recommendations based on existing object schema.
+        
+        Args:
+            object_name: API name of the object
+            field_requirements: List of required field specifications
+            
+        Returns:
+            Field recommendations with org context
+        """
+        if not self.sf_connected:
+            return {
+                'connected': False,
+                'message': 'Not connected to org - providing generic recommendations'
+            }
+        
+        try:
+            # Get current object schema
+            schema = self.sf_connector.get_object_schema(object_name)
+            existing_fields = {field['name']: field for field in schema.get('fields', [])}
+            
+            recommendations = {
+                'object_name': object_name,
+                'connected': True,
+                'existing_fields_count': len(existing_fields),
+                'field_recommendations': []
+            }
+            
+            for req_field in field_requirements:
+                field_name = req_field.get('name', '')
+                
+                if field_name in existing_fields:
+                    # Field exists - analyze compatibility
+                    existing_field = existing_fields[field_name]
+                    recommendation = {
+                        'field_name': field_name,
+                        'status': 'exists',
+                        'current_type': existing_field.get('type'),
+                        'required_type': req_field.get('type'),
+                        'compatible': existing_field.get('type') == req_field.get('type'),
+                        'existing_metadata': existing_field,
+                        'action': 'use_existing' if existing_field.get('type') == req_field.get('type') else 'review_compatibility'
+                    }
+                else:
+                    # Field doesn't exist - recommend creation
+                    recommendation = {
+                        'field_name': field_name,
+                        'status': 'new',
+                        'recommended_type': req_field.get('type'),
+                        'action': 'create_new',
+                        'suggestions': self._get_field_type_suggestions(req_field, existing_fields)
+                    }
+                
+                recommendations['field_recommendations'].append(recommendation)
+            
+            return recommendations
+            
+        except Exception as e:
+            return {
+                'connected': True,
+                'error': str(e),
+                'object_name': object_name
+            }
+    
+    def _get_org_context(self, mentioned_objects: List[str]) -> Dict[str, Any]:
+        """Get relevant org context for mentioned objects."""
+        if not self.sf_connected or not mentioned_objects:
+            return {}
+        
+        org_context = {}
+        
+        for obj_name in mentioned_objects:
+            try:
+                # Get object schema
+                schema = self.sf_connector.get_object_schema(obj_name)
+                
+                # Get related objects
+                related_objects = self.sf_connector.get_related_objects(obj_name)
+                
+                org_context[obj_name] = {
+                    'exists': True,
+                    'schema_summary': {
+                        'label': schema.get('label'),
+                        'custom': schema.get('custom', False),
+                        'fields_count': len(schema.get('fields', [])),
+                        'key_fields': [f['name'] for f in schema.get('fields', [])[:10]],  # First 10 fields
+                        'relationships_count': len(schema.get('relationships', [])),
+                        'related_objects': [rel['related_object'] for rel in related_objects[:5]]  # Top 5 related
+                    }
+                }
+                
+            except Exception as e:
+                org_context[obj_name] = {
+                    'exists': False,
+                    'error': str(e)
+                }
+        
+        return org_context
+    
+    def _get_field_type_suggestions(self, field_req: Dict, existing_fields: Dict) -> List[str]:
+        """Get field type suggestions based on existing org patterns."""
+        suggestions = []
+        
+        # Analyze similar fields in the object
+        req_type = field_req.get('type', '').lower()
+        field_name = field_req.get('name', '').lower()
+        
+        # Find similar fields by name pattern
+        similar_fields = []
+        for existing_name, existing_field in existing_fields.items():
+            if any(keyword in existing_name.lower() for keyword in field_name.split('_')):
+                similar_fields.append(existing_field)
+        
+        if similar_fields:
+            common_types = list(set(f.get('type') for f in similar_fields))
+            suggestions.append(f"Similar fields in this object use types: {', '.join(common_types)}")
+        
+        # Type-specific suggestions
+        if 'email' in field_name:
+            suggestions.append("Consider using Email type with built-in validation")
+        elif 'phone' in field_name:
+            suggestions.append("Consider using Phone type for proper formatting")
+        elif 'date' in field_name and req_type != 'date':
+            suggestions.append("Consider using Date or DateTime type for date fields")
+        elif 'amount' in field_name or 'price' in field_name:
+            suggestions.append("Consider using Currency type for monetary values")
+        
+        return suggestions
+    
+    def get_org_statistics(self) -> Dict[str, Any]:
+        """Get helpful org statistics for analysis."""
+        if not self.sf_connected:
+            return {'connected': False}
+        
+        try:
+            # Get org limits
+            limits = self.sf_connector.get_org_limits()
+            
+            # Get custom objects count
+            custom_objects = self.sf_connector.get_all_objects(include_custom_only=True)
+            
+            return {
+                'connected': True,
+                'custom_objects_count': len(custom_objects),
+                'data_storage_used': limits.get('DataStorageMB', {}).get('Remaining', 'Unknown'),
+                'file_storage_used': limits.get('FileStorageMB', {}).get('Remaining', 'Unknown'),
+                'api_requests_used': limits.get('DailyApiRequests', {}).get('Remaining', 'Unknown'),
+                'sample_custom_objects': [obj['name'] for obj in custom_objects[:10]]
+            }
+            
+        except Exception as e:
+            return {
+                'connected': True,
+                'error': str(e)
+            } 
