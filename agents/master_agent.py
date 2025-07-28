@@ -5,7 +5,7 @@ from crewai.agent import Agent
 from langchain_openai import ChatOpenAI
 
 from agents.memory_manager import MemoryManager
-from agents.salesforce_expert_agent import SalesforceExpertAgent
+from agents.salesforce_expert_agent import SalesforceSchemaExpertAgent
 from agents.technical_architect_agent import SalesforceTechnicalArchitectAgent
 from agents.dependency_resolver_agent import DependencyResolverAgent
 from config import Config
@@ -33,7 +33,7 @@ class SalesforceRequirementDeconstructorAgent:
         )
         
         # Initialize all specialized agents
-        self.expert_agent = SalesforceExpertAgent()
+        self.schema_expert = SalesforceSchemaExpertAgent()
         self.technical_architect = SalesforceTechnicalArchitectAgent()
         self.dependency_resolver = DependencyResolverAgent()
         
@@ -340,50 +340,50 @@ class SalesforceRequirementDeconstructorAgent:
         # Extract mentioned objects from conversation
         mentioned_objects = self._extract_mentioned_objects(conversation_context)
         
-        # Consult with the expert agent
-        if self.expert_agent.sf_connected:
-            self.memory_manager.add_message("system", "🔍 Consulting with Salesforce Expert Agent (🟢 Connected to your org) to analyze requirements...", "expert_analysis")
+        # Consult with the schema expert agent
+        if self.schema_expert.sf_connected:
+            self.memory_manager.add_message("system", "🔍 Consulting with Salesforce Schema Expert (🟢 Connected to your org) to analyze data model requirements...", "schema_analysis")
         else:
-            self.memory_manager.add_message("system", "🔍 Consulting with Salesforce Expert Agent (🔴 Offline mode) to identify gaps and enhancements...", "expert_analysis")
+            self.memory_manager.add_message("system", "🔍 Consulting with Salesforce Schema Expert (🔴 Offline mode) to analyze data model requirements...", "schema_analysis")
         
         try:
-            # Get expert analysis with org context
-            expert_analysis = self.expert_agent.analyze_with_org_context(
+            # Get schema analysis with org context
+            schema_analysis = self.schema_expert.analyze_schema_with_org_context(
                 conversation_context, 
                 current_requirements,
                 mentioned_objects
             )
             
             # Validate that we got meaningful analysis results
-            if not expert_analysis or not any(expert_analysis.get(key) for key in ['requirement_gaps', 'best_practices', 'suggested_enhancements']):
-                # Fallback to basic expert analysis if org context fails
-                expert_analysis = self.expert_agent.analyze_requirements_and_suggest_improvements(
+            if not schema_analysis or not any(schema_analysis.get(key) for key in ['existing_objects', 'new_objects', 'field_recommendations']):
+                # Fallback to basic schema analysis if org context fails
+                schema_analysis = self.schema_expert.analyze_schema_requirements(
                     conversation_context, 
                     current_requirements
                 )
             
-            self.expert_suggestions = expert_analysis
+            self.expert_suggestions = schema_analysis
             
-            # Create a user-friendly presentation of the expert suggestions
-            suggestions_summary = self._format_expert_suggestions(expert_analysis)
+            # Create a user-friendly presentation of the schema recommendations
+            suggestions_summary = self._format_schema_suggestions(schema_analysis)
             
             # Show connection status in the response
-            connection_status = "🟢 Connected to your Salesforce org" if self.expert_agent.sf_connected else "🔴 Operating in offline mode"
+            connection_status = "🟢 Connected to your Salesforce org" if self.schema_expert.sf_connected else "🔴 Operating in offline mode"
             
-            response = f"""🎯 **Expert Analysis Complete!** ({connection_status})
+            response = f"""🎯 **Schema Analysis Complete!** ({connection_status})
 
-I've consulted with our Salesforce Expert Agent to analyze your requirements and identify potential enhancements. Here's what we found:
+I've consulted with our Salesforce Schema Expert to analyze your data model requirements. Here's what we found:
 
 {suggestions_summary}
 
-**These are expert recommendations to enhance your solution.** You can choose to:
+**These are schema recommendations for your solution.** You can choose to:
 
-✅ **Accept All** - Include all expert suggestions in your implementation plan
-🔧 **Select Specific** - Tell me which suggestions you'd like to include  
+✅ **Accept All** - Include all schema recommendations in your implementation plan
+🔧 **Select Specific** - Tell me which objects/fields you'd like to include  
 ➡️ **Proceed As-Is** - Continue with your original requirements only
-❓ **Need Details** - Ask me to explain any specific recommendation
+❓ **Need Details** - Ask me to explain any specific object or field recommendation
 
-What would you like to do with these expert suggestions?"""
+What would you like to do with these schema recommendations?"""
 
             # Store the expert response
             self.memory_manager.add_message("agent", response, "expert_suggestions")
@@ -1052,49 +1052,58 @@ What would you like to do with your implementation plan?"""
             "session_id": self.memory_manager.session_id
         }
     
-    def _format_expert_suggestions(self, expert_analysis: Dict[str, Any]) -> str:
-        """Format expert suggestions in a user-friendly way."""
+    def _format_schema_suggestions(self, schema_analysis: Dict[str, Any]) -> str:
+        """Format schema suggestions in a user-friendly way."""
         
-        if not expert_analysis:
-            return "Expert analysis completed but no specific suggestions were generated. Your requirements appear comprehensive as stated."
+        if not schema_analysis:
+            return "Schema analysis completed but no specific recommendations were generated. Your data model appears well-defined as stated."
         
         formatted = []
         
-        # Format requirement gaps
-        if expert_analysis.get("requirement_gaps"):
-            formatted.append("🔍 **Missing Requirements Identified:**")
-            for gap in expert_analysis["requirement_gaps"][:3]:  # Show top 3
-                formatted.append(f"   • {gap}")
-            if len(expert_analysis["requirement_gaps"]) > 3:
-                formatted.append(f"   • ...and {len(expert_analysis['requirement_gaps']) - 3} more")
+        # Format existing objects to leverage
+        if schema_analysis.get("existing_objects"):
+            formatted.append("📋 **Existing Objects to Leverage:**")
+            for obj in schema_analysis["existing_objects"][:3]:  # Show top 3
+                formatted.append(f"   • {obj}")
+            if len(schema_analysis["existing_objects"]) > 3:
+                formatted.append(f"   • ...and {len(schema_analysis['existing_objects']) - 3} more")
         
-        # Format best practices
-        if expert_analysis.get("best_practices"):
-            formatted.append("\n⭐ **Best Practice Recommendations:**")
-            for practice in expert_analysis["best_practices"][:3]:  # Show top 3
-                formatted.append(f"   • {practice}")
-            if len(expert_analysis["best_practices"]) > 3:
-                formatted.append(f"   • ...and {len(expert_analysis['best_practices']) - 3} more")
+        # Format new objects needed
+        if schema_analysis.get("new_objects"):
+            formatted.append("\n🆕 **New Custom Objects Needed:**")
+            for obj in schema_analysis["new_objects"][:3]:  # Show top 3
+                formatted.append(f"   • {obj}")
+            if len(schema_analysis["new_objects"]) > 3:
+                formatted.append(f"   • ...and {len(schema_analysis['new_objects']) - 3} more")
         
-        # Format enhancements
-        if expert_analysis.get("suggested_enhancements"):
-            formatted.append("\n🚀 **Value-Adding Enhancements:**")
-            for enhancement in expert_analysis["suggested_enhancements"][:3]:  # Show top 3
-                formatted.append(f"   • {enhancement}")
-            if len(expert_analysis["suggested_enhancements"]) > 3:
-                formatted.append(f"   • ...and {len(expert_analysis['suggested_enhancements']) - 3} more")
+        # Format field recommendations
+        if schema_analysis.get("field_recommendations"):
+            formatted.append("\n🔧 **Field Recommendations:**")
+            for field in schema_analysis["field_recommendations"][:4]:  # Show top 4
+                formatted.append(f"   • {field}")
+            if len(schema_analysis["field_recommendations"]) > 4:
+                formatted.append(f"   • ...and {len(schema_analysis['field_recommendations']) - 4} more")
+        
+        # Format relationships
+        if schema_analysis.get("relationships"):
+            formatted.append("\n🔗 **Relationship Design:**")
+            for rel in schema_analysis["relationships"][:3]:  # Show top 3
+                formatted.append(f"   • {rel}")
+            if len(schema_analysis["relationships"]) > 3:
+                formatted.append(f"   • ...and {len(schema_analysis['relationships']) - 3} more")
         
         # Show org context info if available
-        if expert_analysis.get("org_connected") and expert_analysis.get("org_context"):
-            formatted.append("\n📊 **Org Analysis:**")
-            org_context = expert_analysis["org_context"]
+        if schema_analysis.get("org_connected") and schema_analysis.get("org_context"):
+            formatted.append("\n📊 **Real-time Org Analysis:**")
+            org_context = schema_analysis["org_context"]
             for obj_name, obj_info in list(org_context.items())[:2]:  # Show top 2 objects
                 if obj_info.get("exists"):
-                    formatted.append(f"   • {obj_name}: Found in org with {obj_info.get('schema_summary', {}).get('fields_count', 'unknown')} fields")
+                    field_count = obj_info.get('schema_summary', {}).get('fields_count', 'unknown')
+                    formatted.append(f"   • {obj_name}: ✅ Found in org ({field_count} fields)")
                 else:
-                    formatted.append(f"   • {obj_name}: Not found in org - will need to be created")
+                    formatted.append(f"   • {obj_name}: ❌ Not found - needs creation")
         
-        return "\n".join(formatted) if formatted else "Expert analysis completed. Your requirements appear comprehensive and well-defined as stated."
+        return "\n".join(formatted) if formatted else "Schema analysis completed. Your data model appears well-defined as stated."
     
     def _create_numbered_suggestions_list(self) -> str:
         """Create a numbered list of suggestions for easy selection."""

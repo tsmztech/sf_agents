@@ -414,10 +414,10 @@ def get_agent_info_from_message(message):
     """Get agent information based on message type."""
     message_type = message.get('message_type', '')
     
-    if 'expert' in message_type:
+    if 'expert' in message_type or 'schema' in message_type:
         return {
-            'name': 'Expert Agent',
-            'icon': '🎯',
+            'name': 'Schema Expert',
+            'icon': '📋',
             'css_class': 'expert-message'
         }
     elif 'technical_design' in message_type:
@@ -455,8 +455,8 @@ def display_agent_activities():
             
             # Get agent icon
             agent_icon = "🔄"
-            if "Expert" in activity['agent']:
-                agent_icon = "🎯"
+            if "Schema" in activity['agent'] or "Expert" in activity['agent']:
+                agent_icon = "📋"
             elif "Technical" in activity['agent']:
                 agent_icon = "🏗️"
             elif "Dependency" in activity['agent']:
@@ -502,12 +502,12 @@ def display_sidebar():
         
         # Salesforce connection status
         if Config.validate_salesforce_config():
-            if st.session_state.agent and hasattr(st.session_state.agent.expert_agent, 'sf_connected'):
-                if st.session_state.agent.expert_agent.sf_connected:
+            if st.session_state.agent and hasattr(st.session_state.agent.schema_expert, 'sf_connected'):
+                if st.session_state.agent.schema_expert.sf_connected:
                     st.success("🟢 Salesforce org connected")
                     if st.button("🔍 Test SF Connection"):
                         with st.spinner("Testing Salesforce connection..."):
-                            test_result = st.session_state.agent.expert_agent.sf_connector.test_connection()
+                            test_result = st.session_state.agent.schema_expert.sf_connector.test_connection()
                             if test_result.get('connected'):
                                 org_info = test_result.get('org_info', {})
                                 st.success(f"✅ Connected to: {org_info.get('Name', 'Unknown Org')}")
@@ -732,19 +732,19 @@ def process_user_input(user_input: str):
         
         # Handle special cases that trigger additional agents
         if result['type'] == 'ready_for_expert_analysis':
-            # Add expert agent activity
-            add_agent_activity("Expert Agent", "is identifying gaps and enhancements...")
-            st.info("🔍 Consulting with Salesforce Expert Agent...")
+            # Add schema expert agent activity
+            add_agent_activity("Schema Expert", "is analyzing data model requirements...")
+            st.info("🔍 Consulting with Salesforce Schema Expert...")
             
-            # Trigger expert analysis using the dedicated method
+            # Trigger schema analysis using the dedicated method
             expert_start = time.time()
             expert_result = st.session_state.agent.trigger_expert_analysis()
-            complete_agent_activity("Expert Agent")
+            complete_agent_activity("Schema Expert")
             
             if expert_result.get('type') == 'expert_suggestions':
-                st.success("💡 Expert suggestions ready for your review!")
+                st.success("📋 Schema recommendations ready for your review!")
             elif expert_result.get('type') == 'error_fallback':
-                st.warning("⚠️ Expert analysis encountered issues, but we can still proceed with implementation planning.")
+                st.warning("⚠️ Schema analysis encountered issues, but we can still proceed with implementation planning.")
         
         # Update conversation history
         st.session_state.conversation_history = st.session_state.agent.get_conversation_history()

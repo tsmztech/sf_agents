@@ -15,11 +15,14 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-class SalesforceExpertAgent:
+class SalesforceSchemaExpertAgent:
     """
-    Expert Agent specialized in Salesforce best practices, architecture patterns,
-    and intelligent requirement gap filling. This agent provides suggestions
-    when requirements are incomplete or could benefit from Salesforce best practices.
+    Specialized Expert Agent focused exclusively on Salesforce schema and database design.
+    This agent analyzes requirements and provides guidance on:
+    - Existing objects and fields that can be leveraged
+    - New objects and fields that need to be created
+    - Field types, relationships, and data model recommendations
+    - Standard vs custom object usage optimization
     """
     
     def __init__(self):
@@ -35,7 +38,7 @@ class SalesforceExpertAgent:
         self.sf_connected = False
         self._initialize_salesforce_connection()
         
-        # Initialize the Crew AI expert agent
+        # Initialize the Crew AI schema expert agent
         self._initialize_agent()
     
     def _initialize_salesforce_connection(self):
@@ -67,64 +70,62 @@ class SalesforceExpertAgent:
             self.sf_connected = False
     
     def _initialize_agent(self):
-        """Initialize the Crew AI expert agent with Salesforce expertise."""
+        """Initialize the Crew AI schema expert agent focused on Salesforce data model."""
         self.agent = Agent(
-            role="Senior Salesforce Solution Architect & Best Practices Expert",
-            goal="""Provide expert guidance on Salesforce architecture, identify requirement gaps, 
-                    and suggest best practices to enhance solutions. Fill missing requirements with 
-                    intelligent suggestions based on industry standards and Salesforce best practices.""",
-            backstory="""You are a Senior Salesforce Solution Architect with 15+ years of experience 
-                        implementing enterprise Salesforce solutions. You have deep expertise in:
+            role="Salesforce Schema & Database Expert",
+            goal="""Analyze requirements and provide expert guidance on Salesforce object and field design. 
+                    Identify existing objects/fields that can be leveraged and recommend new ones when needed. 
+                    Focus exclusively on data model, schema design, and field configurations.""",
+            backstory="""You are a specialized Salesforce Schema Expert with deep expertise in:
                         
-                        TECHNICAL EXPERTISE:
-                        - Salesforce platform architecture and limitations
-                        - Data modeling and schema design best practices
-                        - Security frameworks and permission strategies
-                        - Integration patterns and API design
-                        - Performance optimization and scalability
-                        - Automation best practices (Flows, Apex, etc.)
-                        - Lightning platform development standards
+                        SALESFORCE DATA MODEL EXPERTISE:
+                        - Standard and Custom Objects (when to use each)
+                        - Field types, lengths, and configurations
+                        - Relationships (Lookup, Master-Detail, Junction Objects)
+                        - Data validation rules and field dependencies
+                        - Record types and picklist management
+                        - Schema optimization and performance considerations
                         
-                        BUSINESS EXPERTISE:
-                        - Industry-specific Salesforce patterns
-                        - Change management and user adoption
-                        - Governance and compliance requirements
-                        - ROI optimization and business value delivery
+                        REAL-TIME ORG ANALYSIS:
+                        - Analyzing existing org schema and objects
+                        - Identifying reusable standard objects and fields
+                        - Mapping business requirements to Salesforce objects
+                        - Recommending field types based on use cases
+                        - Suggesting relationship structures
                         
-                        PROBLEM SOLVING:
-                        - Identifying gaps in requirements
-                        - Suggesting complementary features that enhance value
-                        - Recommending future-proof architectural decisions
-                        - Balancing business needs with technical constraints
+                        YOUR APPROACH:
+                        1. Always check existing org schema first
+                        2. Prefer standard objects when possible
+                        3. Recommend appropriate field types and sizes
+                        4. Consider data relationships and dependencies
+                        5. Provide specific object and field names
+                        6. Think about data volume and performance
                         
-                        You always consider scalability, maintainability, user experience, 
-                        and long-term business value in your recommendations.""",
+                        You focus ONLY on schema design - no automation, security, or UI recommendations.""",
             verbose=True,
             allow_delegation=False,
             llm=self.llm
         )
     
-    def analyze_requirements_and_suggest_improvements(
+    def analyze_schema_requirements(
         self, 
         conversation_context: str, 
         current_requirements: List[Dict[str, Any]]
     ) -> Dict[str, Any]:
         """
-        Analyze current requirements and provide expert suggestions for improvements,
-        missing components, and best practices.
+        Analyze requirements from a schema/database perspective and provide object/field recommendations.
         
         Args:
             conversation_context: Full conversation history
             current_requirements: List of extracted requirements
             
         Returns:
-            Dictionary containing analysis and suggestions
+            Dictionary containing schema analysis and recommendations
         """
         
         task = Task(
             description=f"""
-            As a Senior Salesforce Solution Architect, analyze the current requirements and conversation 
-            to identify gaps, improvements, and best practice recommendations.
+            As a Salesforce Schema Expert, analyze the requirements and provide specific object and field recommendations.
             
             CONVERSATION CONTEXT:
             {conversation_context}
@@ -132,63 +133,38 @@ class SalesforceExpertAgent:
             CURRENT REQUIREMENTS SUMMARY:
             {self._format_requirements(current_requirements)}
             
-            ANALYSIS TASKS:
+            YOUR ANALYSIS SHOULD FOCUS ON:
             
-            1. **Gap Analysis**: Identify missing but important requirements such as:
-               - Security and permission considerations
-               - Data governance and compliance needs
-               - Integration touchpoints
-               - Scalability considerations
-               - User experience elements
-               - Reporting and analytics needs
-               - Mobile accessibility
-               - Performance requirements
-               - Backup and disaster recovery
-               - Change management processes
+            1. **Identify Data Entities**: What business entities/concepts need to be stored?
+            2. **Map to Salesforce Objects**: Which standard objects can be used? What custom objects are needed?
+            3. **Define Field Requirements**: What specific fields are needed for each object?
+            4. **Determine Relationships**: How should objects relate to each other?
+            5. **Specify Field Types**: What field types, lengths, and configurations are appropriate?
             
-            2. **Best Practice Suggestions**: Recommend Salesforce best practices:
-               - Optimal data model design
-               - Appropriate automation tools (Flow vs Apex vs Process Builder)
-               - Security model recommendations
-               - Integration patterns
-               - UI/UX improvements
-               - Performance optimizations
+            RESPONSE FORMAT (be very specific):
             
-            3. **Enhancement Opportunities**: Suggest valuable additions that:
-               - Increase business value
-               - Improve user adoption
-               - Future-proof the solution
-               - Leverage Salesforce platform capabilities
-               - Support business growth
+            **OBJECTS TO LEVERAGE:**
+            - [List existing standard objects that can be used, e.g., "Account for companies", "Contact for people"]
             
-            4. **Risk Mitigation**: Identify potential risks and suggest preventive measures:
-               - Technical debt risks
-               - Scalability bottlenecks
-               - Security vulnerabilities
-               - User adoption challenges
-               - Maintenance complexities
+            **NEW CUSTOM OBJECTS NEEDED:**
+            - [List custom objects to create with clear business purpose, e.g., "Life_Event__c for family milestones"]
             
-            RESPONSE FORMAT:
-            Provide your analysis in the following structured format:
+            **FIELD RECOMMENDATIONS:**
+            For each object (existing or new), specify:
+            - Field Name (API format)
+            - Field Type (Text, Number, Date, Picklist, etc.)
+            - Field Length/Configuration
+            - Purpose/Description
             
-            **REQUIREMENT GAPS IDENTIFIED:**
-            - [List specific gaps with explanations]
+            **RELATIONSHIP DESIGN:**
+            - [Specify lookups, master-detail relationships between objects]
             
-            **SALESFORCE BEST PRACTICE RECOMMENDATIONS:**
-            - [List recommendations with rationale]
+            **DATA MODEL CONSIDERATIONS:**
+            - [Performance, volume, and design considerations]
             
-            **SUGGESTED ENHANCEMENTS:**
-            - [List valuable additions with business justification]
-            
-            **IMPLEMENTATION CONSIDERATIONS:**
-            - [List important technical and business considerations]
-            
-            **RECOMMENDED NEXT STEPS:**
-            - [List prioritized suggestions for user consideration]
-            
-            Be specific, actionable, and explain the business value of each suggestion.
+            Be concrete and actionable - provide exact object names, field names, and types.
             """,
-            expected_output="Comprehensive analysis with structured recommendations for requirement gaps, best practices, and enhancements.",
+            expected_output="Detailed schema analysis with specific object and field recommendations.",
             agent=self.agent
         )
         
@@ -196,108 +172,10 @@ class SalesforceExpertAgent:
         crew = Crew(agents=[self.agent], tasks=[task])
         result = crew.kickoff()
         
-        # Parse the expert analysis
-        return self._parse_expert_analysis(str(result))
+        # Parse the schema analysis
+        return self._parse_schema_analysis(str(result))
     
-    def suggest_missing_components(
-        self, 
-        requirements_type: str, 
-        context: str
-    ) -> Dict[str, Any]:
-        """
-        Suggest specific missing components for a particular area.
-        
-        Args:
-            requirements_type: Type of requirement (e.g., 'security', 'integration', 'data_model')
-            context: Relevant context for the suggestions
-            
-        Returns:
-            Dictionary with specific suggestions
-        """
-        
-        task = Task(
-            description=f"""
-            As a Salesforce expert, provide specific suggestions for the {requirements_type} area 
-            based on the following context:
-            
-            CONTEXT:
-            {context}
-            
-            FOCUS AREA: {requirements_type}
-            
-            Provide detailed, actionable recommendations that follow Salesforce best practices 
-            and industry standards. Include:
-            
-            1. Specific components or configurations needed
-            2. Rationale for each recommendation
-            3. Implementation priority (High/Medium/Low)
-            4. Potential business impact
-            5. Technical considerations
-            
-            Format your response as a structured list with clear explanations.
-            """,
-            expected_output=f"Detailed recommendations for {requirements_type} with priorities and rationale.",
-            agent=self.agent
-        )
-        
-        crew = Crew(agents=[self.agent], tasks=[task])
-        result = crew.kickoff()
-        
-        return {
-            "type": requirements_type,
-            "suggestions": str(result),
-            "priority": self._extract_priority_suggestions(str(result))
-        }
-    
-    def validate_solution_architecture(
-        self, 
-        proposed_solution: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """
-        Validate a proposed solution against Salesforce best practices.
-        
-        Args:
-            proposed_solution: The proposed implementation plan
-            
-        Returns:
-            Validation results with suggestions for improvement
-        """
-        
-        task = Task(
-            description=f"""
-            Review the following proposed Salesforce solution and validate it against 
-            best practices, identifying any issues and suggesting improvements:
-            
-            PROPOSED SOLUTION:
-            {proposed_solution}
-            
-            VALIDATION AREAS:
-            1. **Data Model**: Object relationships, field types, naming conventions
-            2. **Security Model**: Permission sets, sharing rules, field-level security
-            3. **Automation**: Appropriate tool selection (Flow vs Apex vs triggers)
-            4. **Integration**: API design, error handling, security
-            5. **Performance**: Query optimization, bulk processing, limits
-            6. **Scalability**: Growth considerations, governor limits
-            7. **Maintainability**: Code organization, documentation, testing
-            8. **User Experience**: UI/UX design, mobile considerations
-            
-            Provide specific feedback with:
-            - Issues identified (with severity: Critical/High/Medium/Low)
-            - Improvement recommendations
-            - Alternative approaches where applicable
-            - Best practice rationale
-            """,
-            expected_output="Detailed validation report with issues, recommendations, and best practice guidance.",
-            agent=self.agent
-        )
-        
-        crew = Crew(agents=[self.agent], tasks=[task])
-        result = crew.kickoff()
-        
-        return {
-            "validation_result": str(result),
-            "recommendations": self._extract_validation_recommendations(str(result))
-        }
+
     
     def _format_requirements(self, requirements: List[Dict[str, Any]]) -> str:
         """Format requirements for analysis."""
@@ -312,125 +190,90 @@ class SalesforceExpertAgent:
         
         return "\n".join(formatted)
     
-    def _parse_expert_analysis(self, analysis_text: str) -> Dict[str, Any]:
-        """Parse the expert analysis into structured data."""
+    def _parse_schema_analysis(self, analysis_text: str) -> Dict[str, Any]:
+        """Parse the schema analysis into structured data."""
         
         sections = {
-            "requirement_gaps": [],
-            "best_practices": [],
-            "suggested_enhancements": [],
-            "implementation_considerations": [],
-            "recommended_next_steps": [],
+            "existing_objects": [],
+            "new_objects": [],
+            "field_recommendations": [],
+            "relationships": [],
+            "schema_recommendations": [],
             "full_analysis": analysis_text
         }
         
-        # Simple parsing logic - could be enhanced with more sophisticated NLP
+        # Parse schema-specific sections
         lines = analysis_text.split('\n')
         current_section = None
         
         for line in lines:
             line = line.strip()
-            if line.upper().startswith('**REQUIREMENT GAPS'):
-                current_section = "requirement_gaps"
-            elif line.upper().startswith('**SALESFORCE BEST PRACTICE'):
-                current_section = "best_practices"
-            elif line.upper().startswith('**SUGGESTED ENHANCEMENTS'):
-                current_section = "suggested_enhancements"
-            elif line.upper().startswith('**IMPLEMENTATION CONSIDERATIONS'):
-                current_section = "implementation_considerations"
-            elif line.upper().startswith('**RECOMMENDED NEXT STEPS'):
-                current_section = "recommended_next_steps"
+            if line.upper().startswith('**EXISTING OBJECTS'):
+                current_section = "existing_objects"
+            elif line.upper().startswith('**NEW CUSTOM OBJECTS') or line.upper().startswith('**NEW OBJECTS'):
+                current_section = "new_objects"
+            elif line.upper().startswith('**DETAILED FIELD') or line.upper().startswith('**FIELD RECOMMENDATIONS'):
+                current_section = "field_recommendations"
+            elif line.upper().startswith('**RELATIONSHIP DESIGN'):
+                current_section = "relationships"
+            elif line.upper().startswith('**SCHEMA RECOMMENDATIONS'):
+                current_section = "schema_recommendations"
             elif line.startswith('-') and current_section:
+                sections[current_section].append(line[1:].strip())
+            elif line.startswith('•') and current_section:
                 sections[current_section].append(line[1:].strip())
         
         return sections
     
-    def _extract_priority_suggestions(self, suggestions_text: str) -> List[Dict[str, Any]]:
-        """Extract priority suggestions from the text."""
-        priorities = []
-        lines = suggestions_text.split('\n')
+    def _extract_potential_objects(self, conversation_context: str) -> List[str]:
+        """Extract potential Salesforce objects from conversation context."""
+        import re
         
-        for line in lines:
-            if 'High' in line or 'Critical' in line:
-                priorities.append({
-                    "priority": "High",
-                    "suggestion": line.strip()
-                })
-            elif 'Medium' in line:
-                priorities.append({
-                    "priority": "Medium", 
-                    "suggestion": line.strip()
-                })
-        
-        return priorities
-    
-    def _extract_validation_recommendations(self, validation_text: str) -> List[Dict[str, Any]]:
-        """Extract validation recommendations from the text."""
-        recommendations = []
-        lines = validation_text.split('\n')
-        
-        for line in lines:
-            if line.strip().startswith('-') or line.strip().startswith('•'):
-                recommendations.append({
-                    "recommendation": line.strip()[1:].strip(),
-                    "type": "improvement"
-                })
-        
-        return recommendations
-    
-    def get_industry_best_practices(self, industry: str, use_case: str) -> Dict[str, Any]:
-        """
-        Get industry-specific best practices and recommendations.
-        
-        Args:
-            industry: Industry type (e.g., 'healthcare', 'financial_services', 'manufacturing')
-            use_case: Specific use case within the industry
-            
-        Returns:
-            Industry-specific recommendations
-        """
-        
-        task = Task(
-            description=f"""
-            Provide industry-specific Salesforce best practices and recommendations for:
-            
-            INDUSTRY: {industry}
-            USE CASE: {use_case}
-            
-            Include:
-            1. Industry-specific compliance requirements
-            2. Common data models and objects for this industry
-            3. Typical integration patterns
-            4. Security and privacy considerations
-            5. User experience patterns
-            6. Reporting and analytics needs
-            7. Mobile requirements
-            8. Scalability considerations for this industry
-            
-            Provide specific, actionable recommendations that are proven to work well
-            in this industry context.
-            """,
-            expected_output="Industry-specific best practices and recommendations with detailed explanations.",
-            agent=self.agent
-        )
-        
-        crew = Crew(agents=[self.agent], tasks=[task])
-        result = crew.kickoff()
-        
-        return {
-            "industry": industry,
-            "use_case": use_case,
-            "recommendations": str(result)
+        # Common business terms that might indicate objects
+        business_patterns = {
+            'customer|client|company|organization|business': 'Account',
+            'person|people|individual|contact|user': 'Contact',
+            'prospect|lead': 'Lead',
+            'deal|sale|opportunity': 'Opportunity',
+            'support|ticket|issue|case': 'Case',
+            'product|item|merchandise': 'Product2',
+            'event|appointment|meeting': 'Event',
+            'task|todo|action': 'Task',
+            'campaign|marketing': 'Campaign',
+            'contract|agreement': 'Contract',
+            'asset|equipment': 'Asset'
         }
+        
+        potential_objects = []
+        
+        # Look for explicit object mentions
+        object_pattern = r'\b\w+__c\b'  # Custom objects
+        custom_objects = re.findall(object_pattern, conversation_context, re.IGNORECASE)
+        potential_objects.extend(custom_objects)
+        
+        # Map business terms to standard objects
+        for pattern, obj_name in business_patterns.items():
+            if re.search(pattern, conversation_context, re.IGNORECASE):
+                potential_objects.append(obj_name)
+        
+        # Look for specific standard object names
+        standard_objects = ['Account', 'Contact', 'Lead', 'Opportunity', 'Case', 'Product2', 'Campaign', 'Event', 'Task']
+        for obj in standard_objects:
+            if re.search(rf'\b{re.escape(obj)}\b', conversation_context, re.IGNORECASE):
+                potential_objects.append(obj)
+        
+        return list(set(potential_objects))  # Remove duplicates
     
-    def analyze_with_org_context(
+
+    
+    def analyze_schema_with_org_context(
         self, 
         conversation_context: str, 
         current_requirements: List[Dict[str, Any]],
         mentioned_objects: List[str] = None
     ) -> Dict[str, Any]:
         """
-        Analyze requirements with real-time Salesforce org context.
+        Analyze requirements for schema design with real-time Salesforce org context.
         
         Args:
             conversation_context: Full conversation history
@@ -438,18 +281,24 @@ class SalesforceExpertAgent:
             mentioned_objects: List of object names mentioned in requirements
             
         Returns:
-            Enhanced analysis with real org context
+            Schema analysis with real org context
         """
         
         # Get real-time org data if connected
         org_context_data = self._get_org_context(mentioned_objects or [])
         
+        # Auto-detect objects from conversation if not provided
+        if not mentioned_objects:
+            mentioned_objects = self._extract_potential_objects(conversation_context)
+            if mentioned_objects:
+                org_context_data.update(self._get_org_context(mentioned_objects))
+        
         # Determine analysis mode
-        analysis_mode = "REAL-TIME ORG ANALYSIS" if self.sf_connected else "BEST PRACTICE ANALYSIS"
+        analysis_mode = "REAL-TIME ORG SCHEMA ANALYSIS" if self.sf_connected else "SCHEMA DESIGN ANALYSIS"
         
         task = Task(
             description=f"""
-            As a Senior Salesforce Solution Architect, analyze the requirements with {analysis_mode}.
+            As a Salesforce Schema Expert, analyze the requirements with {analysis_mode}.
             
             CONNECTION STATUS: {"🟢 CONNECTED TO SALESFORCE ORG" if self.sf_connected else "🔴 OFFLINE MODE"}
             
@@ -462,57 +311,52 @@ class SalesforceExpertAgent:
             {"REAL-TIME ORG SCHEMA DATA:" if self.sf_connected else ""}
             {json.dumps(org_context_data, indent=2) if org_context_data else ""}
             
-            ENHANCED ANALYSIS TASKS:
+            SCHEMA ANALYSIS FOCUS:
             
-            1. **Real-Time Object Analysis** (if connected):
-               - Verify which objects/fields already exist in the org
-               - Identify existing relationships and dependencies
-               - Check current field types and constraints
-               - Analyze existing data patterns and usage
+            1. **Existing Object Analysis** (if connected):
+               - Which mentioned objects already exist in the org?
+               - What fields do they currently have?
+               - Are there suitable standard objects to use instead?
+               - What relationships already exist?
             
-            2. **Gap Analysis with Org Context**:
-               - What needs to be created vs. what exists
-               - Missing relationships and data connections
-               - Security and permission gaps based on current setup
-               - Data migration and integration requirements
+            2. **Object Strategy**:
+               - Standard objects to leverage (Account, Contact, etc.)
+               - Custom objects that need to be created
+               - Why each object choice is optimal
             
-            3. **Optimization Opportunities**:
-               - Leverage existing org infrastructure
-               - Optimize based on current data volumes and patterns
-               - Suggest improvements to existing schema
-               - Identify unused or underutilized objects/fields
+            3. **Field Design**:
+               - Specific fields needed for each object
+               - Appropriate field types and configurations
+               - Required vs optional fields
+               - Field relationships and dependencies
             
-            4. **Implementation Feasibility**:
-               - Assess complexity based on current org state
-               - Identify potential conflicts with existing setup
-               - Recommend phased implementation approach
-               - Highlight technical risks and mitigation strategies
+            4. **Relationship Architecture**:
+               - Lookup vs Master-Detail relationships
+               - Junction objects for many-to-many relationships
+               - Parent-child hierarchies
             
-            RESPONSE FORMAT:
-            Provide analysis in structured format:
+            RESPONSE FORMAT (be very specific):
             
-            **ORG ANALYSIS SUMMARY:**
-            - [Summary of current org state and readiness]
+            **EXISTING OBJECTS TO USE:**
+            - [Object Name]: [What it will store] - [Current field count if connected]
             
-            **EXISTING INFRASTRUCTURE:**
-            - [List what already exists and can be leveraged]
+            **NEW CUSTOM OBJECTS NEEDED:**
+            - [Custom_Object__c]: [Purpose and why custom is needed]
             
-            **REQUIRED NEW COMPONENTS:**
-            - [List what needs to be created]
+            **DETAILED FIELD SPECIFICATIONS:**
+            For [Object Name]:
+            - Field_API_Name__c: [Type(Length)] - [Purpose]
+            - Another_Field__c: [Type] - [Purpose]
             
-            **OPTIMIZATION RECOMMENDATIONS:**
-            - [Suggestions to improve existing setup]
+            **RELATIONSHIP DESIGN:**
+            - [Object A] → [Object B]: [Lookup/Master-Detail] via [Field_Name__c]
             
-            **IMPLEMENTATION STRATEGY:**
-            - [Phased approach with priorities and dependencies]
+            **SCHEMA RECOMMENDATIONS:**
+            - [Specific technical recommendations for optimal design]
             
-            **RISK ASSESSMENT:**
-            - [Potential issues and mitigation strategies]
-            
-            Be specific about object names, field types, and relationships.
-            Include business justification for each recommendation.
+            Focus ONLY on objects, fields, and relationships. No automation, security, or UI suggestions.
             """,
-            expected_output="Comprehensive org-aware analysis with specific recommendations based on real Salesforce data.",
+            expected_output="Detailed schema analysis with specific object, field, and relationship recommendations.",
             agent=self.agent
         )
         
@@ -520,33 +364,23 @@ class SalesforceExpertAgent:
         crew = Crew(agents=[self.agent], tasks=[task])
         result = crew.kickoff()
         
-        # Parse and enhance the expert analysis
+        # Parse and enhance the schema analysis
         try:
-            analysis = self._parse_expert_analysis(str(result))
+            analysis = self._parse_schema_analysis(str(result))
             analysis['org_connected'] = self.sf_connected
             analysis['org_context'] = org_context_data
-            
-            # Ensure we have at least some basic content
-            if not any(analysis.get(key) for key in ['requirement_gaps', 'best_practices', 'suggested_enhancements']):
-                # Create some basic suggestions if parsing failed
-                analysis = {
-                    'requirement_gaps': ['Consider data validation rules', 'Define user access permissions', 'Plan for data backup and recovery'],
-                    'best_practices': ['Use standard Salesforce naming conventions', 'Implement proper field-level security', 'Create comprehensive test data'],
-                    'suggested_enhancements': ['Add workflow automation', 'Include reporting dashboards', 'Consider mobile optimization'],
-                    'org_connected': self.sf_connected,
-                    'org_context': org_context_data,
-                    'full_analysis': str(result)
-                }
+            analysis['mentioned_objects'] = mentioned_objects
             
             return analysis
             
         except Exception as e:
-            logger.error(f"Error parsing expert analysis: {e}")
-            # Return basic fallback analysis
+            logger.error(f"Error parsing schema analysis: {e}")
+            # Return basic fallback analysis focused on schema
             return {
-                'requirement_gaps': ['Review data model completeness', 'Validate security requirements'],
-                'best_practices': ['Follow Salesforce development best practices', 'Implement proper testing'],
-                'suggested_enhancements': ['Consider automation opportunities', 'Plan for user training'],
+                'existing_objects': ['Account', 'Contact'] if not org_context_data else list(org_context_data.keys()),
+                'new_objects': ['Custom_Object__c'],
+                'field_recommendations': ['Name (Text)', 'Description (Long Text Area)'],
+                'relationships': ['Custom_Object__c → Contact (Lookup)'],
                 'org_connected': self.sf_connected,
                 'org_context': org_context_data,
                 'full_analysis': str(result),
