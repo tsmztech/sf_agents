@@ -248,6 +248,32 @@ def initialize_session_state():
     if 'processing' not in st.session_state:
         st.session_state.processing = False
     
+    # Configuration state
+    if 'config_complete' not in st.session_state:
+        st.session_state.config_complete = False
+    if 'openai_api_key' not in st.session_state:
+        st.session_state.openai_api_key = ""
+    if 'sf_instance_url' not in st.session_state:
+        st.session_state.sf_instance_url = ""
+    if 'sf_client_id' not in st.session_state:
+        st.session_state.sf_client_id = ""
+    if 'sf_client_secret' not in st.session_state:
+        st.session_state.sf_client_secret = ""
+    if 'sf_domain' not in st.session_state:
+        st.session_state.sf_domain = "login"
+    if 'sf_username' not in st.session_state:
+        st.session_state.sf_username = ""
+    if 'sf_password' not in st.session_state:
+        st.session_state.sf_password = ""
+    if 'sf_security_token' not in st.session_state:
+        st.session_state.sf_security_token = ""
+    if 'auth_method_selected' not in st.session_state:
+        st.session_state.auth_method_selected = False
+    if 'use_username_password' not in st.session_state:
+        st.session_state.use_username_password = False
+    if 'last_auth_method' not in st.session_state:
+        st.session_state.last_auth_method = ""
+    
     # Initialize agent activity tracking
     initialize_agent_tracking()
 
@@ -494,70 +520,43 @@ def display_sidebar():
         
         # Configuration status
         st.subheader("🔧 Configuration")
-        if Config.validate_required_keys():
-            st.success("✅ OpenAI API configured")
-        else:
-            st.error("❌ OpenAI API key required")
-            st.info("Please set OPENAI_API_KEY in your .env file")
+        st.success("✅ OpenAI API configured")
         
         # Salesforce connection status
-        if Config.validate_salesforce_config():
-            if st.session_state.agent and hasattr(st.session_state.agent.schema_expert, 'sf_connected'):
-                if st.session_state.agent.schema_expert.sf_connected:
-                    st.success("🟢 Salesforce org connected")
-                    if st.button("🔍 Test SF Connection"):
-                        with st.spinner("Testing Salesforce connection..."):
-                            test_result = st.session_state.agent.schema_expert.sf_connector.test_connection()
-                            if test_result.get('connected'):
-                                org_info = test_result.get('org_info', {})
-                                auth_type = test_result.get('auth_type', 'unknown')
-                                auth_display = "🎯 Client Credentials" if auth_type == "client_credentials" else "🔄 Username-Password"
-                                
-                                st.success(f"✅ Connected to: {org_info.get('Name', 'Unknown Org')}")
-                                st.info(f"🔐 Auth Method: {auth_display}")
-                                st.info(f"📊 Available objects: {test_result.get('sobjects_count', 'Unknown')}")
-                            else:
-                                st.error(f"❌ Connection failed: {test_result.get('error')}")
-                else:
-                    st.warning("🟡 Salesforce configured but not connected")
+        if st.session_state.agent and hasattr(st.session_state.agent.schema_expert, 'sf_connected'):
+            if st.session_state.agent.schema_expert.sf_connected:
+                st.success("🟢 Salesforce org connected")
+                if st.button("🔍 Test SF Connection"):
+                    with st.spinner("Testing Salesforce connection..."):
+                        test_result = st.session_state.agent.schema_expert.sf_connector.test_connection()
+                        if test_result.get('connected'):
+                            org_info = test_result.get('org_info', {})
+                            auth_type = test_result.get('auth_type', 'unknown')
+                            auth_display = "🎯 Client Credentials" if auth_type == "client_credentials" else "🔄 Username-Password"
+                            
+                            st.success(f"✅ Connected to: {org_info.get('Name', 'Unknown Org')}")
+                            st.info(f"🔐 Auth Method: {auth_display}")
+                            st.info(f"📊 Available objects: {test_result.get('sobjects_count', 'Unknown')}")
+                        else:
+                            st.error(f"❌ Connection failed: {test_result.get('error')}")
             else:
-                st.info("🔵 Salesforce will connect when agent starts")
+                st.warning("🟡 Salesforce configured but not connected")
         else:
-            st.info("🔴 Salesforce not configured")
-            with st.expander("ℹ️ Salesforce Configuration Help"):
-                st.markdown("""
-                **🎯 Recommended: Client Credentials Flow (Only 3 fields needed!)**
-                
-                Add these to your `.env` file:
-                ```
-                SALESFORCE_INSTANCE_URL=https://your-instance.salesforce.com
-                SALESFORCE_CLIENT_ID=your_connected_app_client_id
-                SALESFORCE_CLIENT_SECRET=your_connected_app_client_secret
-                ```
-                
-                **Setup Steps:**
-                1. Create a Connected App in Salesforce (Setup → App Manager)
-                2. Enable OAuth Settings with scopes: `api`, `refresh_token`, `web`
-                3. Check "Enable Client Credentials Flow"
-                4. Add your server's IP to "Relax IP restrictions" if needed
-                
-                ---
-                
-                **🔄 Legacy: Username-Password Flow (6 fields - for backward compatibility)**
-                ```
-                SALESFORCE_INSTANCE_URL=https://your-instance.salesforce.com
-                SALESFORCE_CLIENT_ID=your_connected_app_client_id
-                SALESFORCE_CLIENT_SECRET=your_connected_app_client_secret
-                SALESFORCE_USERNAME=your_username
-                SALESFORCE_PASSWORD=your_password
-                SALESFORCE_SECURITY_TOKEN=your_security_token
-                ```
-                
-                **Optional Settings:**
-                ```
-                SALESFORCE_DOMAIN=login  # or 'test' for sandbox
-                ```
-                """)
+            st.info("🔵 Salesforce will connect when agent starts")
+        
+        # Reconfigure button
+        st.markdown("---")
+        if st.button("⚙️ Reconfigure Credentials", help="Change your API keys and Salesforce settings"):
+            # Reset configuration
+            st.session_state.config_complete = False
+            st.session_state.agent = None
+            st.session_state.conversation_history = []
+            st.session_state.current_session_id = None
+            # Reset auth method selection
+            st.session_state.auth_method_selected = False
+            st.session_state.use_username_password = False
+            st.session_state.last_auth_method = ""
+            st.rerun()
         
         # Session information
         st.subheader("📊 Session Info")
@@ -809,15 +808,355 @@ def process_user_input(user_input: str):
     finally:
         st.session_state.processing = False
 
+def show_configuration_popup():
+    """Show configuration popup to collect API keys and Salesforce credentials."""
+    # Custom CSS for the configuration page
+    st.markdown("""
+    <style>
+        .config-container {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 2rem;
+            border-radius: 15px;
+            margin: 1rem 0;
+            color: white;
+        }
+        .config-form {
+            background: white;
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+        .stTextInput > div > div > input {
+            border-radius: 8px;
+        }
+        .stSelectbox > div > div > div {
+            border-radius: 8px;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("""
+    <div class="config-container">
+        <div style="text-align: center;">
+            <h1>🔧 Salesforce AI Agent Configuration</h1>
+            <p style="font-size: 1.1rem; opacity: 0.9;">Please provide your API credentials to get started</p>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    with st.container():
+        col1, col2, col3 = st.columns([1, 2, 1])
+        
+        with col2:
+            st.subheader("🤖 OpenAI Configuration")
+            openai_key = st.text_input(
+                "OpenAI API Key",
+                type="password",
+                value=st.session_state.openai_api_key,
+                help="Your OpenAI API key for AI agent functionality",
+                key="openai_key_input"
+            )
+            
+            st.subheader("⚡ Salesforce Configuration")
+            
+            # Auth method selection (outside form for immediate response)
+            auth_method = st.radio(
+                "Authentication Method",
+                options=["Client Credentials (Recommended)", "Username-Password (Legacy)"],
+                index=0 if not st.session_state.get('auth_method_selected') else (1 if st.session_state.get('use_username_password', False) else 0),
+                help="Client Credentials is more secure and requires only 3 fields",
+                key="auth_method_radio"
+            )
+            
+            use_client_creds = auth_method.startswith("Client Credentials")
+            
+            # Store auth method preference in session state
+            if 'auth_method_selected' not in st.session_state:
+                st.session_state.auth_method_selected = False
+            if st.session_state.auth_method_radio != st.session_state.get('last_auth_method', ''):
+                st.session_state.last_auth_method = st.session_state.auth_method_radio
+                st.session_state.use_username_password = not use_client_creds
+                st.session_state.auth_method_selected = True
+            
+            if use_client_creds:
+                st.info("💡 Using Client Credentials Flow - only 3 fields needed!")
+            else:
+                st.warning("⚠️ Using Username-Password Flow - requires 6 fields")
+            
+            with st.form("config_form"):
+                col_a, col_b = st.columns(2)
+                with col_a:
+                    sf_instance = st.text_input(
+                        "Instance URL",
+                        value=st.session_state.sf_instance_url,
+                        placeholder="https://your-instance.salesforce.com",
+                        help="Your Salesforce instance URL"
+                    )
+                    
+                    sf_client_id = st.text_input(
+                        "Client ID",
+                        value=st.session_state.sf_client_id,
+                        help="Connected App Client ID"
+                    )
+                    
+                    sf_client_secret = st.text_input(
+                        "Client Secret",
+                        type="password",
+                        value=st.session_state.sf_client_secret,
+                        help="Connected App Client Secret"
+                    )
+                
+                with col_b:
+                    sf_domain = st.selectbox(
+                        "Domain",
+                        options=["login", "test"],
+                        index=0 if st.session_state.sf_domain == "login" else 1,
+                        help="Use 'login' for production, 'test' for sandbox"
+                    )
+                    
+                    # Username-Password fields (only shown for legacy method)
+                    if not use_client_creds:
+                        st.markdown("**Username-Password Credentials:**")
+                        sf_username = st.text_input(
+                            "Username",
+                            value=st.session_state.get('sf_username', ''),
+                            help="Your Salesforce username"
+                        )
+                        
+                        sf_password = st.text_input(
+                            "Password",
+                            type="password",
+                            value=st.session_state.get('sf_password', ''),
+                            help="Your Salesforce password"
+                        )
+                        
+                        sf_security_token = st.text_input(
+                            "Security Token",
+                            type="password",
+                            value=st.session_state.get('sf_security_token', ''),
+                            help="Your Salesforce security token"
+                        )
+                    else:
+                        sf_username = ""
+                        sf_password = ""
+                        sf_security_token = ""
+                
+                st.markdown("---")
+                
+                with st.expander("📚 Setup Instructions", expanded=False):
+                    st.markdown("""
+                    **OpenAI API Key:**
+                    1. Go to [OpenAI Platform](https://platform.openai.com/api-keys)
+                    2. Create a new API key
+                    3. Copy and paste it above
+                    
+                    **Salesforce Connected App:**
+                    1. In Salesforce: Setup → App Manager → New Connected App
+                    2. Basic Information: Fill app name, email, etc.
+                    3. API (Enable OAuth Settings):
+                       - ✅ Enable OAuth Settings
+                       - ✅ Enable Client Credentials Flow
+                       - Callback URL: `http://localhost` (not used)
+                       - Scopes: `api`, `refresh_token`, `web`
+                    4. Save and get Client ID & Secret
+                    """)
+                
+                submitted = st.form_submit_button("🚀 Connect & Validate", use_container_width=True, type="primary")
+                
+                if submitted:
+                    return validate_and_save_config(
+                        openai_key, sf_instance, sf_client_id, sf_client_secret, sf_domain,
+                        use_client_creds, sf_username, sf_password, sf_security_token
+                    )
+    
+    return False
+
+def validate_and_save_config(openai_key, sf_instance, sf_client_id, sf_client_secret, sf_domain, 
+                           use_client_creds, sf_username, sf_password, sf_security_token):
+    """Validate the provided configuration and save if successful."""
+    
+    with st.spinner("🔍 Validating configurations..."):
+        # Validate OpenAI
+        openai_valid = validate_openai_config(openai_key)
+        
+        # Validate Salesforce
+        sf_valid = validate_salesforce_config(
+            sf_instance, sf_client_id, sf_client_secret, sf_domain,
+            use_client_creds, sf_username, sf_password, sf_security_token
+        )
+        
+        if openai_valid and sf_valid:
+            # Save to session state
+            st.session_state.openai_api_key = openai_key
+            st.session_state.sf_instance_url = sf_instance
+            st.session_state.sf_client_id = sf_client_id
+            st.session_state.sf_client_secret = sf_client_secret
+            st.session_state.sf_domain = sf_domain
+            st.session_state.sf_username = sf_username
+            st.session_state.sf_password = sf_password
+            st.session_state.sf_security_token = sf_security_token
+            st.session_state.config_complete = True
+            
+            st.success("✅ All configurations validated successfully!")
+            st.balloons()
+            time.sleep(1)
+            st.rerun()
+            return True
+        else:
+            if not openai_valid:
+                st.error("❌ OpenAI API key validation failed")
+            if not sf_valid:
+                st.error("❌ Salesforce configuration validation failed")
+            return False
+
+def validate_openai_config(api_key):
+    """Validate OpenAI API key."""
+    if not api_key:
+        st.error("OpenAI API key is required")
+        return False
+    
+    try:
+        import openai
+        client = openai.OpenAI(api_key=api_key)
+        
+        # Test with a simple API call
+        response = client.models.list()
+        st.success("✅ OpenAI API key is valid")
+        return True
+    except Exception as e:
+        st.error(f"❌ OpenAI validation failed: {str(e)}")
+        return False
+
+def validate_salesforce_config(instance_url, client_id, client_secret, domain, 
+                             use_client_creds, username, password, security_token):
+    """Validate Salesforce configuration using direct API call."""
+    
+    # Check required fields based on auth method
+    if use_client_creds:
+        if not all([instance_url, client_id, client_secret]):
+            st.error("Instance URL, Client ID, and Client Secret are required for Client Credentials Flow")
+            return False
+    else:
+        if not all([instance_url, client_id, client_secret, username, password, security_token]):
+            st.error("All fields are required for Username-Password Flow")
+            return False
+    
+    try:
+        import requests
+        
+        # Determine auth URL based on domain
+        if domain == "test":
+            auth_base_url = "https://test.salesforce.com"
+        else:
+            auth_base_url = "https://login.salesforce.com"
+        
+        auth_url = f"{auth_base_url}/services/oauth2/token"
+        
+        # Choose authentication method
+        if use_client_creds:
+            # Test Client Credentials Flow
+            auth_data = {
+                'grant_type': 'client_credentials',
+                'client_id': client_id,
+                'client_secret': client_secret
+            }
+            auth_method_name = "Client Credentials"
+        else:
+            # Test Username-Password Flow
+            auth_data = {
+                'grant_type': 'password',
+                'client_id': client_id,
+                'client_secret': client_secret,
+                'username': username,
+                'password': password + security_token
+            }
+            auth_method_name = "Username-Password"
+        
+        # Make authentication request
+        response = requests.post(auth_url, data=auth_data, timeout=30)
+        
+        if response.status_code == 200:
+            token_data = response.json()
+            access_token = token_data['access_token']
+            
+            # For username-password flow, use the returned instance URL
+            test_instance_url = token_data.get('instance_url', instance_url)
+            
+            # Test API access with the token
+            api_url = f"{test_instance_url}/services/data/v58.0/sobjects"
+            headers = {'Authorization': f'Bearer {access_token}'}
+            
+            api_response = requests.get(api_url, headers=headers, timeout=30)
+            
+            if api_response.status_code == 200:
+                # Get org info
+                org_query_url = f"{test_instance_url}/services/data/v58.0/query"
+                org_query = "SELECT Id, Name, OrganizationType FROM Organization LIMIT 1"
+                org_response = requests.get(
+                    org_query_url, 
+                    headers=headers, 
+                    params={'q': org_query},
+                    timeout=30
+                )
+                
+                if org_response.status_code == 200:
+                    org_data = org_response.json()
+                    if org_data.get('records'):
+                        org_name = org_data['records'][0].get('Name', 'Unknown')
+                        st.success(f"✅ Connected to Salesforce org: {org_name} (using {auth_method_name} Flow)")
+                    else:
+                        st.success(f"✅ Connected to Salesforce (using {auth_method_name} Flow)")
+                    return True
+                else:
+                    st.error("❌ Connected but unable to query org information")
+                    return False
+            else:
+                st.error(f"❌ API access failed: {api_response.status_code}")
+                return False
+        else:
+            error_data = response.json() if response.headers.get('content-type') == 'application/json' else {}
+            error_msg = error_data.get('error_description', error_data.get('error', response.text))
+            
+            if use_client_creds and "not supported" in error_msg.lower():
+                st.error("❌ Client Credentials Flow is not enabled on your Connected App. Please enable it or use Username-Password Flow.")
+            else:
+                st.error(f"❌ {auth_method_name} authentication failed: {error_msg}")
+            return False
+            
+    except requests.exceptions.Timeout:
+        st.error("❌ Connection timeout - please check your network and Salesforce instance URL")
+        return False
+    except requests.exceptions.ConnectionError:
+        st.error("❌ Connection error - please check your network and Salesforce instance URL")
+        return False
+    except Exception as e:
+        st.error(f"❌ Salesforce validation failed: {str(e)}")
+        return False
+
 def main():
     """Main application function."""
     initialize_session_state()
     
-    # Check if we have API key
-    if not Config.validate_required_keys():
-        st.error("⚠️ Please configure your OpenAI API key in a .env file to continue.")
-        st.code("OPENAI_API_KEY=your_api_key_here")
-        st.stop()
+    # Show configuration popup if not complete
+    if not st.session_state.config_complete:
+        show_configuration_popup()
+        return
+    
+    # Set environment variables from session state for the agents to use
+    import os
+    os.environ['OPENAI_API_KEY'] = st.session_state.openai_api_key
+    os.environ['SALESFORCE_INSTANCE_URL'] = st.session_state.sf_instance_url
+    os.environ['SALESFORCE_CLIENT_ID'] = st.session_state.sf_client_id
+    os.environ['SALESFORCE_CLIENT_SECRET'] = st.session_state.sf_client_secret
+    os.environ['SALESFORCE_DOMAIN'] = st.session_state.sf_domain
+    
+    # Set username-password fields if available (for legacy flow)
+    if st.session_state.sf_username:
+        os.environ['SALESFORCE_USERNAME'] = st.session_state.sf_username
+    if st.session_state.sf_password:
+        os.environ['SALESFORCE_PASSWORD'] = st.session_state.sf_password
+    if st.session_state.sf_security_token:
+        os.environ['SALESFORCE_SECURITY_TOKEN'] = st.session_state.sf_security_token
     
     # Display sidebar
     display_sidebar()
