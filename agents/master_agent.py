@@ -1,8 +1,8 @@
 import json
 from typing import Dict, Any, List, Optional
-from crewai import Agent, Task, Crew
-from crewai.agent import Agent
-from langchain_openai import ChatOpenAI
+from agents.simple_agent import Agent, Task, Crew
+import openai
+import os
 
 from agents.memory_manager import MemoryManager
 from agents.salesforce_expert_agent import SalesforceSchemaExpertAgent
@@ -25,12 +25,7 @@ class SalesforceRequirementDeconstructorAgent:
         self.technical_design = None
         self.implementation_tasks = None
         
-        # Initialize the LLM
-        self.llm = ChatOpenAI(
-            model="gpt-4",
-            api_key=Config.OPENAI_API_KEY,
-            temperature=0.3
-        )
+        # OpenAI is handled directly by the simple agent implementation
         
         # Initialize all specialized agents
         self.schema_expert = SalesforceSchemaExpertAgent()
@@ -41,7 +36,7 @@ class SalesforceRequirementDeconstructorAgent:
         self._initialize_agent()
     
     def _initialize_agent(self):
-        """Initialize the Crew AI agent with Salesforce expertise."""
+        """Initialize the simple agent with Salesforce expertise."""
         self.agent = Agent(
             role="Salesforce Solution Architect",
             goal="""Understand business requirements and deconstruct them into detailed 
@@ -63,10 +58,7 @@ class SalesforceRequirementDeconstructorAgent:
                         agents to identify gaps and suggest improvements. You present expert 
                         recommendations to users in a clear, non-overwhelming way, allowing them 
                         to choose which suggestions to include. You focus on getting enough 
-                        information to create a solid foundation, then enhance it with expert insights.""",
-            verbose=True,
-            allow_delegation=False,
-            llm=self.llm
+                        information to create a solid foundation, then enhance it with expert insights."""
         )
     
     def process_user_input(self, user_input: str) -> Dict[str, Any]:
