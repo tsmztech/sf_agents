@@ -85,13 +85,13 @@ st.markdown("""
         .expert-message .message-bubble,
         .technical-message .message-bubble,
         .dependency-message .message-bubble {
-            background: #7c3aed;
+            background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
             color: white;
             padding: 12px 16px;
             border-radius: 18px 18px 18px 4px;
             max-width: 70%;
             word-wrap: break-word;
-            box-shadow: 0 2px 12px rgba(124, 58, 237, 0.3);
+            box-shadow: 0 2px 12px rgba(59, 130, 246, 0.3);
             animation: slideInLeft 0.3s ease-out;
         }
 
@@ -1455,32 +1455,37 @@ def create_chat_input_footer():
             </div>
         ''', unsafe_allow_html=True)
     
-    # Create the fixed footer with Streamlit form
+    # Add styling for the chat input form
     st.markdown('''
-        <div class="chat-input-footer">
-            <div class="chat-input-container" id="streamlit-form-container">
-                <!-- Streamlit form will be inserted here -->
-            </div>
-        </div>
-        
         <style>
-        /* Override Streamlit form styling for the footer */
-        .chat-input-footer .stForm {
-            width: 100%;
+        /* Style the form for a modern chat input appearance */
+        .stForm {
+            background: white;
+            border-top: 2px solid #e9ecef;
+            padding: 15px 20px;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .stForm > div {
             max-width: 800px;
             margin: 0 auto;
         }
         
-        .chat-input-footer .stTextArea > div > div {
+        .stTextArea > div > div {
             border-radius: 22px !important;
             border: 2px solid #e9ecef !important;
         }
         
-        .chat-input-footer .stTextArea > div > div:focus-within {
+        .stTextArea > div > div:focus-within {
             border-color: #667eea !important;
         }
         
-        .chat-input-footer .stButton > button {
+        .stButton > button {
             border-radius: 22px !important;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
             color: white !important;
@@ -1490,12 +1495,8 @@ def create_chat_input_footer():
             font-weight: 600 !important;
         }
         
-        .chat-input-footer .stButton > button:hover {
+        .stButton > button:hover {
             transform: scale(1.05) !important;
-        }
-        
-        .chat-input-footer .stForm {
-            border: none !important;
         }
         </style>
     ''', unsafe_allow_html=True)
