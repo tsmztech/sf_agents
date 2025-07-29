@@ -14,26 +14,26 @@
   "automation_needed": [
     {
       "type": "Flow",
-      "name": "Send_Email_Notification",
-      "purpose": "Sends an email notification to the associated Contact when a new Life Event record is created.",
-      "trigger": "After insert"
+      "name": "Notify_Contact_On_New_Life_Event",
+      "purpose": "Sends an email notification to the associated Contact when a new Life Event is created.",
+      "trigger": "After a record is created"
     }
   ],
   "security_settings": [
     {
       "component": "Profile",
       "permissions": [
-        "View All on Life_Event__c",
-        "Create on Life_Event__c",
-        "Edit on Life_Event__c",
-        "Delete on Life_Event__c"
+        "Read",
+        "Create",
+        "Edit",
+        "Delete"
       ]
     }
   ],
   "ui_components": [
     {
       "type": "Page Layout",
-      "description": "Custom page layout for Life Event to include Event Name, Event Date, and related Contact fields."
+      "description": "Page layout includes fields for Event Name, Event Date, and associated Contact fields for data entry."
     }
   ]
 }

@@ -36,13 +36,17 @@ class ConversationMessage:
         )
 
 class MemoryManager:
-    """Manages conversation history and memory persistence."""
+    """Manages conversation history and memory persistence with improved memory management."""
+    
+    MAX_HISTORY_SIZE = 100  # Prevent memory leaks
+    MAX_FILE_SIZE_MB = 10   # Maximum file size in MB
     
     def __init__(self, session_id: Optional[str] = None):
         self.session_id = session_id or self._generate_session_id()
         self.conversation_history: List[ConversationMessage] = []
         self.requirements_extracted: List[Dict[str, Any]] = []
         self.implementation_plan: Optional[Dict[str, Any]] = None
+        self._memory_usage = 0
         self._ensure_directories()
         self._load_existing_conversation()
     
@@ -78,7 +82,13 @@ class MemoryManager:
                 print(f"Error loading conversation: {e}")
     
     def add_message(self, role: str, content: str, message_type: str = "text", metadata: Dict[str, Any] = None):
-        """Add a new message to the conversation history."""
+        """Add a new message to the conversation history with memory management."""
+        # Prevent memory leaks by limiting history size
+        if len(self.conversation_history) >= self.MAX_HISTORY_SIZE:
+            # Keep only the most recent messages
+            self.conversation_history = self.conversation_history[-(self.MAX_HISTORY_SIZE // 2):]
+            self._memory_usage = len(self.conversation_history)
+        
         message = ConversationMessage(
             timestamp=datetime.now().isoformat(),
             role=role,
@@ -87,6 +97,7 @@ class MemoryManager:
             metadata=metadata or {}
         )
         self.conversation_history.append(message)
+        self._memory_usage = len(self.conversation_history)
         self._save_conversation()
     
     def get_conversation_context(self, max_messages: int = 20) -> str:
@@ -155,4 +166,51 @@ class MemoryManager:
             for filename in os.listdir(Config.CONVERSATION_HISTORY_PATH):
                 if filename.endswith('.json'):
                     sessions.append(filename.replace('.json', ''))
-        return sorted(sessions, reverse=True)  # Most recent first 
+        return sorted(sessions, reverse=True)  # Most recent first
+    
+    def get_conversation_history(self) -> List[Dict[str, Any]]:
+        """Get conversation history as a list of dictionaries."""
+        return [msg.to_dict() for msg in self.conversation_history]
+    
+    def clear_conversation_history(self):
+        """Clear the conversation history and reset memory usage."""
+        self.conversation_history.clear()
+        self.requirements_extracted.clear()
+        self.implementation_plan = None
+        self._memory_usage = 0
+    
+    def get_memory_status(self) -> Dict[str, Any]:
+        """Get current memory usage status."""
+        file_path = self._get_conversation_file_path()
+        file_size_mb = 0
+        if os.path.exists(file_path):
+            file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
+        
+        return {
+            "session_id": self.session_id,
+            "message_count": len(self.conversation_history),
+            "max_messages": self.MAX_HISTORY_SIZE,
+            "memory_usage": self._memory_usage,
+            "file_size_mb": round(file_size_mb, 2),
+            "max_file_size_mb": self.MAX_FILE_SIZE_MB,
+            "requirements_count": len(self.requirements_extracted)
+        }
+    
+    def optimize_memory(self):
+        """Optimize memory usage by removing old messages and compacting data."""
+        if len(self.conversation_history) > self.MAX_HISTORY_SIZE // 2:
+            # Keep only the most recent half of messages
+            keep_count = self.MAX_HISTORY_SIZE // 2
+            self.conversation_history = self.conversation_history[-keep_count:]
+            self._memory_usage = len(self.conversation_history)
+            self._save_conversation()
+        
+        # Clean up old session files if they're too large
+        file_path = self._get_conversation_file_path()
+        if os.path.exists(file_path):
+            file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
+            if file_size_mb > self.MAX_FILE_SIZE_MB:
+                # Archive the current session and start fresh
+                archive_path = file_path.replace('.json', f'_archived_{datetime.now().strftime("%Y%m%d_%H%M%S")}.json')
+                os.rename(file_path, archive_path)
+                self.clear_conversation_history() 

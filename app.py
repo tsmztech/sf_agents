@@ -5,9 +5,11 @@ import json
 from datetime import datetime
 import logging
 
-from agents.master_agent import SalesforceRequirementDeconstructorAgent
 from config import Config
-# Import CrewAI implementation
+# Import unified agent system
+from agents.unified_agent_system import UnifiedAgentSystem, AgentSystemType
+from agents.error_handler import error_handler, format_error_for_ui, safe_execute
+# Import CrewAI implementation (fallback)
 from salesforce_crew import CrewExecutor, analyze_salesforce_requirement, is_complex_requirement
 
 # Safe import of CrewOutput
@@ -35,200 +37,159 @@ st.set_page_config(
     }
 )
 
-# Enhanced CSS for better chat styling
+# Consolidated CSS for better UI consistency
 st.markdown("""
 <style>
-    .chat-container {
-        max-height: 600px;
-        overflow-y: auto;
-        padding: 1rem;
-        border: 1px solid #ddd;
-        border-radius: 10px;
-        background-color: #f8f9fa;
+    /* Main Layout */
+    .main .block-container {
+        padding-top: 1rem !important;
+        padding-bottom: 120px !important; /* Space for fixed footer */
+        max-width: 1200px !important;
     }
     
-            /* Remove excessive spacing */
-        .main .block-container {
-            padding-top: 1rem !important;
-            padding-bottom: 1rem !important;
-        }
-        
-        /* Chat Container */
-        .chat-container {
-            min-height: auto;
-            overflow-y: auto;
-            padding: 10px 20px;
-            padding-bottom: 120px;
-            background: transparent;
-        }
+    /* Chat Container */
+    .chat-container {
+        min-height: calc(100vh - 200px);
+        overflow-y: auto;
+        padding: 10px 20px;
+        background: transparent;
+        margin-bottom: 20px;
+    }
 
-        /* User Messages - Right Aligned */
-        .user-message {
-            display: flex;
-            justify-content: flex-end;
-            margin: 12px 0;
-        }
+    /* User Messages - Right Aligned */
+    .user-message {
+        display: flex;
+        justify-content: flex-end;
+        margin: 12px 0;
+        animation: slideInRight 0.3s ease-out;
+    }
 
-        .user-message .message-bubble {
-            background: linear-gradient(135deg, #6c7293 0%, #4a4f6b 100%);
-            color: white;
-            padding: 12px 16px;
-            border-radius: 18px 18px 4px 18px;
-            max-width: 70%;
-            word-wrap: break-word;
-            box-shadow: 0 2px 12px rgba(108, 114, 147, 0.3);
-            animation: slideInRight 0.3s ease-out;
-        }
+    .user-message .message-bubble {
+        background: linear-gradient(135deg, #6c7293 0%, #4a4f6b 100%);
+        color: white;
+        padding: 12px 16px;
+        border-radius: 18px 18px 4px 18px;
+        max-width: 70%;
+        word-wrap: break-word;
+        box-shadow: 0 2px 12px rgba(108, 114, 147, 0.3);
+        line-height: 1.5;
+    }
 
-        /* All System Messages - Left Aligned with Single Color */
-        .agent-message,
-        .expert-message,
-        .technical-message,
-        .dependency-message {
-            display: flex;
-            justify-content: flex-start;
-            margin: 12px 0;
-        }
+    /* All Agent Messages - Left Aligned */
+    .agent-message,
+    .expert-message,
+    .technical-message,
+    .dependency-message {
+        display: flex;
+        justify-content: flex-start;
+        margin: 12px 0;
+        animation: slideInLeft 0.3s ease-out;
+    }
 
-        .agent-message .message-bubble,
-        .expert-message .message-bubble,
-        .technical-message .message-bubble,
-        .dependency-message .message-bubble {
-            background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
-            color: white;
-            padding: 12px 16px;
-            border-radius: 18px 18px 18px 4px;
-            max-width: 70%;
-            word-wrap: break-word;
-            box-shadow: 0 2px 12px rgba(59, 130, 246, 0.3);
-            animation: slideInLeft 0.3s ease-out;
-        }
+    .agent-message .message-bubble,
+    .expert-message .message-bubble,
+    .technical-message .message-bubble,
+    .dependency-message .message-bubble {
+        background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+        color: white;
+        padding: 12px 16px;
+        border-radius: 18px 18px 18px 4px;
+        max-width: 70%;
+        word-wrap: break-word;
+        box-shadow: 0 2px 12px rgba(59, 130, 246, 0.3);
+        line-height: 1.5;
+    }
 
-        /* Agent Status Messages */
-        .agent-status {
-            display: flex;
-            justify-content: flex-start;
-            margin: 8px 0;
-        }
+    /* Agent Status Messages */
+    .agent-status {
+        display: flex;
+        justify-content: flex-start;
+        margin: 8px 0;
+    }
 
-        .agent-status .message-bubble {
-            background: rgba(108, 117, 125, 0.8);
-            color: white;
-            padding: 8px 12px;
-            border-radius: 15px;
-            font-size: 0.9rem;
-            animation: pulse 2s infinite;
-            max-width: 60%;
-        }
+    .agent-status .message-bubble {
+        background: rgba(108, 117, 125, 0.8);
+        color: white;
+        padding: 8px 12px;
+        border-radius: 15px;
+        font-size: 0.9rem;
+        animation: pulse 2s infinite;
+        max-width: 60%;
+    }
 
-        .agent-status-completed .message-bubble {
-            background: #10b981;
-            animation: none;
-        }
+    .agent-status-completed .message-bubble {
+        background: #10b981;
+        animation: none;
+    }
 
-        /* Fixed Footer Input */
-        .chat-input-footer {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: white;
-            border-top: 2px solid #e9ecef;
-            padding: 15px 20px;
-            z-index: 1000;
-            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
-        }
-
-        .chat-input-container {
-            max-width: 800px;
-            margin: 0 auto;
-            display: flex;
-            gap: 10px;
-            align-items: flex-end;
-        }
-
-        .chat-input-box {
-            flex: 1;
-            min-height: 44px;
-            max-height: 120px;
-            padding: 12px 16px;
-            border: 2px solid #e9ecef;
-            border-radius: 22px;
-            font-size: 16px;
-            resize: none;
-            outline: none;
-            transition: border-color 0.3s ease;
-            background: #f8f9fa;
-        }
-
-        .chat-input-box:focus {
-            border-color: #667eea;
-            background: white;
-        }
-
-        .chat-send-button {
-            min-width: 44px;
-            height: 44px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            border-radius: 22px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: transform 0.2s ease;
-            font-weight: 600;
-            padding: 0 16px;
-        }
-
-        .chat-send-button:hover {
-            transform: scale(1.05);
-        }
-
-        .chat-send-button:disabled {
-            background: #6c757d;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        /* Animations */
-        @keyframes slideInRight {
-            from {
-                opacity: 0;
-                transform: translateX(30px);
-            }
-            to {
-                opacity: 1;
-                transform: translateX(0);
-            }
-        }
-
-        @keyframes slideInLeft {
-            from {
-                opacity: 0;
-                transform: translateX(-30px);
-            }
-            to {
-                opacity: 1;
-                transform: translateX(0);
-            }
-        }
-
-        /* Agent Labels */
-        .agent-label {
-            font-size: 0.8rem;
-            color: #6c757d;
-            margin-bottom: 4px;
-            padding-left: 16px;
-        }
-
-        .user-label {
-            text-align: right;
-            padding-right: 16px;
-            color: #6c757d;
-        }
+    /* Fixed Footer Input */
+    .stForm {
+        background: white !important;
+        border-top: 2px solid #e9ecef !important;
+        padding: 15px 20px !important;
+        position: fixed !important;
+        bottom: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        z-index: 1000 !important;
+        box-shadow: 0 -2px 10px rgba(0,0,0,0.1) !important;
+    }
     
+    .stForm > div {
+        max-width: 800px !important;
+        margin: 0 auto !important;
+    }
+    
+    .stTextArea > div > div {
+        border-radius: 22px !important;
+        border: 2px solid #e9ecef !important;
+        background: #f8f9fa !important;
+    }
+    
+    .stTextArea > div > div:focus-within {
+        border-color: #667eea !important;
+        background: white !important;
+    }
+    
+    .stButton > button {
+        border-radius: 22px !important;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+        color: white !important;
+        border: none !important;
+        height: 44px !important;
+        min-width: 44px !important;
+        font-weight: 600 !important;
+        transition: transform 0.2s ease !important;
+    }
+    
+    .stButton > button:hover {
+        transform: scale(1.05) !important;
+    }
+    
+    .stButton > button:disabled {
+        background: #6c757d !important;
+        cursor: not-allowed !important;
+        transform: none !important;
+    }
+
+    /* Agent Labels */
+    .agent-label {
+        font-size: 0.8rem;
+        color: #6c757d;
+        margin-bottom: 4px;
+        padding-left: 16px;
+        font-weight: 500;
+    }
+
+    .user-label {
+        text-align: right;
+        padding-right: 16px;
+        color: #6c757d;
+        font-size: 0.8rem;
+        font-weight: 500;
+    }
+    
+    /* Status Badges */
     .status-badge {
         padding: 5px 10px;
         border-radius: 15px;
@@ -245,77 +206,7 @@ st.markdown("""
     .status-planning { background-color: #fd7e14; color: white; }
     .status-completed { background-color: #28a745; color: white; }
     
-    @keyframes slideIn {
-        from { opacity: 0; transform: translateY(10px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
-    
-    @keyframes pulse {
-        0%, 100% { transform: scale(1); opacity: 1; }
-        50% { transform: scale(1.02); opacity: 0.9; }
-    }
-
-    /* Enhanced chat styling */
-    .user-message, .agent-message, .system-message {
-        margin: 1rem 0;
-        padding: 1rem;
-        border-radius: 12px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        animation: fadeIn 0.5s ease-in;
-    }
-    
-    .user-message {
-        background: linear-gradient(135deg, #0176D3 0%, #005FB8 100%);
-        color: white;
-        margin-left: 2rem;
-        border-bottom-right-radius: 4px;
-    }
-    
-    .agent-message {
-        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-        color: #212529;
-        margin-right: 2rem;
-        border-bottom-left-radius: 4px;
-        border-left: 4px solid #0176D3;
-    }
-    
-    .system-message {
-        background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
-        color: #1565c0;
-        margin: 0.5rem 0;
-        border-left: 4px solid #2196f3;
-        font-style: italic;
-    }
-    
-    .agent-status {
-        background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
-        color: #856404;
-        margin: 0.5rem 0;
-        padding: 0.75rem;
-        border-radius: 8px;
-        border-left: 4px solid #ffc107;
-        font-size: 0.9rem;
-    }
-    
-    .agent-status-completed {
-        background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
-        color: #155724;
-        border-left: 4px solid #28a745;
-    }
-    
-    .user-label, .agent-label {
-        font-size: 0.8rem;
-        color: #6c757d;
-        margin-bottom: 0.25rem;
-        font-weight: 500;
-    }
-    
-    .message-bubble {
-        line-height: 1.5;
-        word-wrap: break-word;
-    }
-    
-    /* Real-time agent activity styling */
+    /* Agent Activity */
     .agent-activity-container {
         background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
         border: 1px solid #dee2e6;
@@ -344,6 +235,44 @@ st.markdown("""
         background: rgba(0,0,0,0.05);
     }
     
+    /* Processing Indicator */
+    .processing-indicator {
+        position: fixed;
+        bottom: 90px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(255, 193, 7, 0.95);
+        color: #856404;
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-size: 0.9rem;
+        z-index: 999;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    }
+    
+    /* Animations */
+    @keyframes slideInRight {
+        from {
+            opacity: 0;
+            transform: translateX(30px);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
+    }
+
+    @keyframes slideInLeft {
+        from {
+            opacity: 0;
+            transform: translateX(-30px);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
+    }
+    
     @keyframes fadeIn {
         from { opacity: 0; transform: translateY(10px); }
         to { opacity: 1; transform: translateY(0); }
@@ -357,13 +286,33 @@ st.markdown("""
     .processing {
         animation: pulse 2s infinite;
     }
+    
+    /* Error and Success Messages */
+    .error-message {
+        background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
+        color: #721c24;
+        border-left: 4px solid #dc3545;
+        padding: 12px 16px;
+        border-radius: 8px;
+        margin: 8px 0;
+    }
+    
+    .success-message {
+        background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+        color: #155724;
+        border-left: 4px solid #28a745;
+        padding: 12px 16px;
+        border-radius: 8px;
+        margin: 8px 0;
+    }
 </style>
 """, unsafe_allow_html=True)
 
 def initialize_session_state():
     """Initialize Streamlit session state variables."""
-    if 'agent' not in st.session_state:
-        st.session_state.agent = None
+    # Unified Agent System
+    if 'unified_agent' not in st.session_state:
+        st.session_state.unified_agent = None
     if 'conversation_history' not in st.session_state:
         st.session_state.conversation_history = []
     if 'current_session_id' not in st.session_state:
@@ -371,9 +320,9 @@ def initialize_session_state():
     if 'processing' not in st.session_state:
         st.session_state.processing = False
     
-    # CrewAI settings
-    if 'use_crewai' not in st.session_state:
-        st.session_state.use_crewai = True  # Default to new CrewAI system
+    # Agent system preference
+    if 'preferred_agent_system' not in st.session_state:
+        st.session_state.preferred_agent_system = AgentSystemType.AUTO
     if 'crew_interactive_mode' not in st.session_state:
         st.session_state.crew_interactive_mode = 'auto'  # auto, always, never
     
@@ -404,6 +353,31 @@ def initialize_session_state():
         st.session_state.last_auth_method = ""
     if 'force_ui_config' not in st.session_state:
         st.session_state.force_ui_config = False
+    
+    # Error tracking
+    if 'error_history' not in st.session_state:
+        st.session_state.error_history = []
+    
+    # Legacy compatibility - map use_crewai to preferred_agent_system
+    if 'use_crewai' not in st.session_state:
+        st.session_state.use_crewai = (st.session_state.preferred_agent_system == AgentSystemType.CREWAI)
+    
+    # Legacy compatibility - initialize agent as None for old code compatibility
+    if 'agent' not in st.session_state:
+        st.session_state.agent = None
+        
+    # Initialize unified agent if configuration is complete
+    if st.session_state.config_complete and not st.session_state.unified_agent:
+        try:
+            st.session_state.unified_agent = UnifiedAgentSystem(
+                preferred_system=st.session_state.preferred_agent_system
+            )
+            st.session_state.conversation_history = st.session_state.unified_agent.get_conversation_history()
+        except Exception as e:
+            error_response = error_handler.handle_error(e, "Agent initialization")
+            formatted_error = format_error_for_ui(error_response)
+            st.error(f"{formatted_error['title']}: {formatted_error['message']}")
+            st.session_state.unified_agent = None
     
     # Initialize agent activity tracking
     initialize_agent_tracking()
@@ -487,10 +461,18 @@ def complete_agent_activity(agent_name: str):
 
 def get_agent_status_display() -> str:
     """Get current agent status for display."""
-    if not st.session_state.agent:
+    if not st.session_state.unified_agent:
         return ""
     
-    agent_state = st.session_state.agent.conversation_state
+    # Try to get state from unified agent system
+    try:
+        if hasattr(st.session_state.unified_agent, 'get_system_status'):
+            status = st.session_state.unified_agent.get_system_status()
+            agent_state = status.get('conversation_state', 'initial')
+        else:
+            agent_state = 'initial'
+    except:
+        agent_state = 'initial'
     
     if agent_state == "initial" or agent_state == "clarifying":
         return "🤖 **Master Agent** is analyzing your requirements..."
@@ -572,26 +554,43 @@ def display_conversation_history():
             ''', unsafe_allow_html=True)
 
 def get_agent_info_from_message(message):
-    """Get agent information based on message type."""
+    """Get agent information based on message type with improved detection."""
     message_type = message.get('message_type', '')
+    message_content = message.get('content', '').lower()
     
-    if 'expert' in message_type or 'schema' in message_type:
+    # Improved agent detection based on content and type
+    if ('expert' in message_type or 'schema' in message_type or 
+        'schema analysis' in message_content or 'object' in message_content):
         return {
             'name': 'Schema Expert',
             'icon': '📋',
             'css_class': 'expert-message'
         }
-    elif 'technical_design' in message_type:
+    elif ('technical_design' in message_type or 'technical' in message_type or
+          'architecture' in message_content or 'automation' in message_content):
         return {
             'name': 'Technical Architect',
             'icon': '🏗️',
             'css_class': 'technical-message'
         }
-    elif 'task_creation' in message_type or 'dependency' in message_type:
+    elif ('task_creation' in message_type or 'dependency' in message_type or
+          'implementation' in message_content or 'tasks' in message_content):
         return {
             'name': 'Dependency Resolver',
             'icon': '📊',
             'css_class': 'dependency-message'
+        }
+    elif 'crewai' in message_type or 'crew' in message_content:
+        return {
+            'name': 'CrewAI Team',
+            'icon': '👥',
+            'css_class': 'agent-message'
+        }
+    elif 'error' in message_type or message.get('role') == 'error':
+        return {
+            'name': 'System',
+            'icon': '⚠️',
+            'css_class': 'agent-message'
         }
     else:
         return {
@@ -839,6 +838,10 @@ def display_sidebar():
         
         if crew_mode != st.session_state.use_crewai:
             st.session_state.use_crewai = crew_mode
+            # Update the preferred agent system to match the toggle
+            st.session_state.preferred_agent_system = AgentSystemType.CREWAI if crew_mode else AgentSystemType.LEGACY
+            # Reset unified agent to apply new preference
+            st.session_state.unified_agent = None
             st.rerun()
         
         if st.session_state.use_crewai:
@@ -857,12 +860,13 @@ def display_sidebar():
             st.caption("⚙️ **Legacy Mode**: Manual agent orchestration")
         
         # Salesforce connection status
-        if st.session_state.agent and hasattr(st.session_state.agent.schema_expert, 'sf_connected'):
-            if st.session_state.agent.schema_expert.sf_connected:
+        if st.session_state.unified_agent and hasattr(st.session_state.unified_agent.legacy_system, 'schema_expert'):
+            schema_expert = st.session_state.unified_agent.legacy_system.schema_expert
+            if hasattr(schema_expert, 'sf_connected') and schema_expert.sf_connected:
                 st.success("🟢 Salesforce org connected")
                 if st.button("🔍 Test SF Connection"):
                     with st.spinner("Testing Salesforce connection..."):
-                        test_result = st.session_state.agent.schema_expert.sf_connector.test_connection()
+                        test_result = schema_expert.sf_connector.test_connection()
                         if test_result.get('connected'):
                             org_info = test_result.get('org_info', {})
                             auth_type = test_result.get('auth_type', 'unknown')
@@ -1019,16 +1023,69 @@ def load_session(session_id: str):
     except Exception as e:
         st.error(f"Error loading session: {e}")
 
-def process_user_input(user_input: str, use_crewai: bool = True):
+@safe_execute("Processing user input")
+def process_user_input(user_input: str):
     """
-    Process user input - can use either CrewAI or legacy agent system.
-    CrewAI is the new default for authentic agentic collaboration.
+    Process user input using the unified agent system.
+    Handles both CrewAI and legacy systems with error recovery.
     """
     
-    if use_crewai:
-        return process_user_input_crewai(user_input)
-    else:
-        return process_user_input_legacy(user_input)
+    if not user_input.strip():
+        st.warning("Please enter a valid requirement or message.")
+        return
+    
+    # Ensure unified agent is initialized
+    if not st.session_state.unified_agent:
+        try:
+            st.session_state.unified_agent = UnifiedAgentSystem(
+                preferred_system=st.session_state.preferred_agent_system
+            )
+        except Exception as e:
+            error_response = error_handler.handle_error(e, "Agent initialization")
+            formatted_error = format_error_for_ui(error_response)
+            st.error(f"{formatted_error['title']}: {formatted_error['message']}")
+            return
+    
+    # Show processing indicator
+    st.session_state.processing = True
+    
+    try:
+        # Process with unified agent system
+        result = st.session_state.unified_agent.process_user_input(user_input)
+        
+        # Update conversation history
+        st.session_state.conversation_history = st.session_state.unified_agent.get_conversation_history()
+        
+        # Handle results
+        if result.get('success'):
+            # Display success response
+            if result.get('system') == 'crewai':
+                display_crewai_results(result.get('result', {}))
+            else:
+                # Handle legacy system response
+                pass  # Legacy responses are already in conversation history
+        else:
+            # Handle errors
+            formatted_error = format_error_for_ui(result)
+            st.markdown(f'''
+                <div class="error-message">
+                    {formatted_error['title']}<br>
+                    <strong>Message:</strong> {formatted_error['message']}<br>
+                    <strong>Suggestion:</strong> {formatted_error['suggestion']}
+                </div>
+            ''', unsafe_allow_html=True)
+            
+            # Add error to session history for tracking
+            st.session_state.error_history.append(result)
+            
+    except Exception as e:
+        # Handle unexpected errors
+        error_response = error_handler.handle_error(e, "User input processing")
+        formatted_error = format_error_for_ui(error_response)
+        st.error(f"{formatted_error['title']}: {formatted_error['message']}")
+        
+    finally:
+        st.session_state.processing = False
 
 def process_user_input_crewai(user_input: str, use_interactive: bool = None):
     """
@@ -1528,22 +1585,45 @@ def show_configuration_popup():
     
     return False
 
+@safe_execute("Configuration validation and saving")
 def validate_and_save_config(openai_key, sf_instance, sf_client_id, sf_client_secret, sf_domain, 
                            use_client_creds, sf_username, sf_password, sf_security_token):
-    """Validate the provided configuration and save if successful."""
+    """Validate the provided configuration and save if successful with improved error handling."""
+    
+    validation_errors = []
     
     with st.spinner("🔍 Validating configurations..."):
         # Validate OpenAI
-        openai_valid = validate_openai_config(openai_key)
+        try:
+            openai_valid = validate_openai_config(openai_key)
+            if not openai_valid:
+                validation_errors.append("OpenAI API key validation failed")
+        except Exception as e:
+            error_response = error_handler.handle_error(e, "OpenAI validation")
+            formatted_error = format_error_for_ui(error_response)
+            validation_errors.append(f"OpenAI validation error: {formatted_error['message']}")
         
         # Validate Salesforce
-        sf_valid = validate_salesforce_config(
-            sf_instance, sf_client_id, sf_client_secret, sf_domain,
-            use_client_creds, sf_username, sf_password, sf_security_token
-        )
+        try:
+            sf_valid = validate_salesforce_config(
+                sf_instance, sf_client_id, sf_client_secret, sf_domain,
+                use_client_creds, sf_username, sf_password, sf_security_token
+            )
+            if not sf_valid:
+                validation_errors.append("Salesforce configuration validation failed")
+        except Exception as e:
+            error_response = error_handler.handle_error(e, "Salesforce validation")
+            formatted_error = format_error_for_ui(error_response)
+            validation_errors.append(f"Salesforce validation error: {formatted_error['message']}")
         
-        if openai_valid and sf_valid:
-            # Save to session state
+        # Display validation results
+        if validation_errors:
+            for error in validation_errors:
+                st.error(f"❌ {error}")
+            return False
+        
+        # Save to session state if validation successful
+        try:
             st.session_state.openai_api_key = openai_key
             st.session_state.sf_instance_url = sf_instance
             st.session_state.sf_client_id = sf_client_id
@@ -1559,17 +1639,26 @@ def validate_and_save_config(openai_key, sf_instance, sf_client_id, sf_client_se
             time.sleep(1)
             st.rerun()
             return True
-        else:
-            if not openai_valid:
-                st.error("❌ OpenAI API key validation failed")
-            if not sf_valid:
-                st.error("❌ Salesforce configuration validation failed")
+        except Exception as e:
+            error_response = error_handler.handle_error(e, "Saving configuration")
+            formatted_error = format_error_for_ui(error_response)
+            st.error(f"❌ Error saving configuration: {formatted_error['message']}")
             return False
 
+@safe_execute("Configuration validation", fallback_result=["Validation system error"])
 def validate_configuration_at_startup():
     """
-    Validate configuration at application startup to catch issues early.
+    Validate configuration at application startup with caching and improved error handling.
     """
+    # Check cache first to avoid repeated validation
+    cache_key = f"validation_{hash(str(st.session_state.get('openai_api_key', ''))[:10] + str(st.session_state.get('sf_client_id', ''))[:10])}"
+    
+    if hasattr(st.session_state, 'validation_cache') and cache_key in st.session_state.validation_cache:
+        cached_result = st.session_state.validation_cache[cache_key]
+        # Check if cache is still valid (less than 5 minutes old)
+        if (datetime.now() - datetime.fromisoformat(cached_result['timestamp'])).seconds < 300:
+            return cached_result['errors']
+    
     validation_errors = []
     
     # Validate OpenAI configuration
@@ -1579,9 +1668,13 @@ def validate_configuration_at_startup():
             # Test OpenAI connection with a simple call
             try:
                 client = openai.OpenAI(api_key=st.session_state.openai_api_key)
-                # Make a minimal test call
+                # Make a minimal test call with timeout
                 response = client.models.list()
                 logging.info("✅ OpenAI API validation successful")
+            except openai.AuthenticationError:
+                validation_errors.append("OpenAI API key is invalid")
+            except openai.RateLimitError:
+                validation_errors.append("OpenAI API rate limit exceeded")
             except Exception as e:
                 validation_errors.append(f"OpenAI API validation failed: {str(e)}")
         else:
@@ -1595,7 +1688,7 @@ def validate_configuration_at_startup():
         if (hasattr(st.session_state, 'sf_client_id') and st.session_state.sf_client_id and
             hasattr(st.session_state, 'sf_client_secret') and st.session_state.sf_client_secret):
             
-            # Test Salesforce connection
+            # Test Salesforce connection with timeout
             try:
                 connector = SalesforceConnector()
                 test_result = connector.test_connection()
@@ -1609,6 +1702,15 @@ def validate_configuration_at_startup():
             validation_errors.append("Salesforce credentials not properly configured")
     except ImportError:
         validation_errors.append("Salesforce connector not available")
+    
+    # Cache the results
+    if not hasattr(st.session_state, 'validation_cache'):
+        st.session_state.validation_cache = {}
+    
+    st.session_state.validation_cache[cache_key] = {
+        'errors': validation_errors,
+        'timestamp': datetime.now().isoformat()
+    }
     
     return validation_errors
 
@@ -2007,44 +2109,18 @@ def main():
     # Display startup validation results in sidebar
     display_startup_validation_results(st.session_state.get('validation_errors', []))
     
-    # Handle pending next phase (automatic progression after user responses)
-    if st.session_state.pending_next_phase and not st.session_state.processing:
-        phase_type = st.session_state.pending_next_phase
-        st.session_state.pending_next_phase = None  # Clear it immediately
-        
-        # Add appropriate agent activity
-        if phase_type == "technical_design":
-            add_agent_activity("Technical Architect", "is creating detailed architecture...")
-        elif phase_type == "task_creation":
-            add_agent_activity("Dependency Resolver", "is creating implementation tasks...")
-        
-        # Set processing state
-        st.session_state.processing = True
-        
-        # Execute the next phase
+    # Initialize unified agent system if needed
+    if not st.session_state.unified_agent:
         try:
-            result = st.session_state.agent.trigger_next_phase(phase_type)
-            
-            # Complete the agent activity
-            if phase_type == "technical_design":
-                complete_agent_activity("Technical Architect")
-            elif phase_type == "task_creation":
-                complete_agent_activity("Dependency Resolver")
-            
-            # Update conversation history
-            st.session_state.conversation_history = st.session_state.agent.get_conversation_history()
-            
-            # Handle the result (check for further triggers)
-            if result.get('trigger_next'):
-                st.session_state.pending_next_phase = result['trigger_next']
-            
+            st.session_state.unified_agent = UnifiedAgentSystem(
+                preferred_system=st.session_state.preferred_agent_system
+            )
+            st.session_state.conversation_history = st.session_state.unified_agent.get_conversation_history()
         except Exception as e:
-            st.error(f"Error in automatic progression: {str(e)}")
-        finally:
-            st.session_state.processing = False
-        
-        # Rerun to show the results
-        st.rerun()
+            error_response = error_handler.handle_error(e, "Agent system initialization")
+            formatted_error = format_error_for_ui(error_response)
+            st.error(f"{formatted_error['title']}: {formatted_error['message']}")
+            return
     
     # Display conversation history with modern chat styling
     display_conversation_history()
@@ -2064,64 +2140,18 @@ def main():
 def create_chat_input_footer():
     """Create the fixed footer with chat input."""
     
-    # Add minimal spacing to prevent content from being hidden behind footer
-    st.markdown('<div style="height: 80px;"></div>', unsafe_allow_html=True)
+    # Dynamic spacing based on viewport and content
+    content_length = len(st.session_state.conversation_history)
+    min_spacing = max(80, min(120, content_length * 5))  # Adaptive spacing
+    st.markdown(f'<div style="height: {min_spacing}px;"></div>', unsafe_allow_html=True)
     
     # Show processing indicator if agents are working
     if st.session_state.processing:
         st.markdown('''
-            <div style="position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%); 
-                        background: rgba(255, 193, 7, 0.9); color: #856404; padding: 8px 16px; 
-                        border-radius: 20px; font-size: 0.9rem; z-index: 999;">
+            <div class="processing-indicator">
                 🤖 Agents are working on your request... Please wait.
             </div>
         ''', unsafe_allow_html=True)
-    
-    # Add styling for the chat input form
-    st.markdown('''
-        <style>
-        /* Style the form for a modern chat input appearance */
-        .stForm {
-            background: white;
-            border-top: 2px solid #e9ecef;
-            padding: 15px 20px;
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            z-index: 1000;
-            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
-        }
-        
-        .stForm > div {
-            max-width: 800px;
-            margin: 0 auto;
-        }
-        
-        .stTextArea > div > div {
-            border-radius: 22px !important;
-            border: 2px solid #e9ecef !important;
-        }
-        
-        .stTextArea > div > div:focus-within {
-            border-color: #667eea !important;
-        }
-        
-        .stButton > button {
-            border-radius: 22px !important;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
-            color: white !important;
-            border: none !important;
-            height: 44px !important;
-            min-width: 44px !important;
-            font-weight: 600 !important;
-        }
-        
-        .stButton > button:hover {
-            transform: scale(1.05) !important;
-        }
-        </style>
-    ''', unsafe_allow_html=True)
     
     # Use Streamlit's form in the footer
     with st.form("chat_input_form", clear_on_submit=True):
@@ -2146,8 +2176,14 @@ def create_chat_input_footer():
             )
         
         if submit_button and user_input:
-            process_user_input(user_input, use_crewai=st.session_state.use_crewai)
-            st.rerun()
+            try:
+                process_user_input(user_input)
+                st.rerun()
+            except Exception as e:
+                error_response = error_handler.handle_error(e, "Chat input processing")
+                formatted_error = format_error_for_ui(error_response)
+                st.error(f"{formatted_error['title']}: {formatted_error['message']}")
+                st.session_state.processing = False
 
 if __name__ == "__main__":
     main() 

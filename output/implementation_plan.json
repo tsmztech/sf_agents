@@ -1,6 +1,6 @@
 {
   "project_summary": {
-    "total_effort": "3 days",
+    "total_effort": "4 days",
     "team_size": "1-2 people",
     "duration": "2 weeks"
   },
@@ -8,73 +8,50 @@
     {
       "id": "T001",
       "title": "Create Life Event Object",
-      "description": "Set up Life Event object (Life_Event__c) with necessary fields (Event_Name__c, Event_Date__c, Contact__c) and sharing settings (Private).",
+      "description": "Create a custom object named 'Life Event' with fields: Event Name, Event Date, and Contact.",
       "effort": "4 hours",
       "dependencies": [],
-      "role": "Admin",
-      "acceptance_criteria": [
-        "Life_Event__c object is created with specified fields.",
-        "Sharing settings applied properly."
-      ]
+      "role": "Developer",
+      "acceptance_criteria": ["Life Event object is created with specified fields and sharing model set to Private."]
     },
     {
       "id": "T002",
-      "title": "Create Email Notification Flow",
-      "description": "Develop a Flow (Send_Email_Notification) that sends an email notification to the related Contact after a new Life Event record is created.",
+      "title": "Set Up Automation Flow for Notification",
+      "description": "Create a Flow named 'Notify_Contact_On_New_Life_Event' to send an email notification post Life Event creation.",
       "effort": "6 hours",
       "dependencies": ["T001"],
       "role": "Developer",
-      "acceptance_criteria": [
-        "Flow is created and activated.",
-        "Email notification is sent to contact upon Life Event creation."
-      ]
+      "acceptance_criteria": ["Flow is created and tested to ensure email notification is sent when a Life Event is created."]
     },
     {
       "id": "T003",
-      "title": "Configure Profile Permissions",
-      "description": "Set up Profile permissions (View, Create, Edit, Delete) for Life_Event__c object.",
-      "effort": "3 hours",
-      "dependencies": ["T001"],
-      "role": "Admin",
-      "acceptance_criteria": [
-        "Profile permissions are set correctly for Life Event object.",
-        "Test user can perform the specified actions on the Life Event records."
-      ]
-    },
-    {
-      "id": "T004",
-      "title": "Create Custom Page Layout",
-      "description": "Design a custom page layout for Life Event that includes Event Name, Event Date, and related Contact fields.",
+      "title": "Configure Profile Security Settings",
+      "description": "Adjust Profile permissions to include Read, Create, Edit, Delete access for the Life Event object.",
       "effort": "2 hours",
       "dependencies": ["T001"],
       "role": "Admin",
-      "acceptance_criteria": [
-        "Custom page layout is created and configured properly.",
-        "Layout displays required fields for users consistently."
-      ]
+      "acceptance_criteria": ["Profile settings updated and confirmed permissions are correctly set for access to Life Event."]
+    },
+    {
+      "id": "T004",
+      "title": "Set Up Page Layout for Life Event",
+      "description": "Create and customize the Page Layout for the Life Event object to ensure fields for Event Name, Event Date, and linked Contact are included.",
+      "effort": "4 hours",
+      "dependencies": ["T001"],
+      "role": "Admin",
+      "acceptance_criteria": ["Page layout is designed and fields are accessible for data entry."]
     },
     {
       "id": "T005",
-      "title": "Testing and Validation",
-      "description": "Conduct testing of the entire implementation, including object creation, flow execution, permission checks, and UI elements.",
+      "title": "Conduct Testing and Validation",
+      "description": "Perform testing of the Life Event object creation, notification flow, and UI to ensure everything functions as intended.",
       "effort": "8 hours",
       "dependencies": ["T002", "T003", "T004"],
-      "role": "Developer",
-      "acceptance_criteria": [
-        "All tasks are verified and pass testing.",
-        "End-user can create a Life Event and receive notifications successfully."
-      ]
+      "role": "Admin|Developer",
+      "acceptance_criteria": ["All functionalities work as expected, and detailed test report is created."]
     }
   ],
   "implementation_order": ["T001", "T002", "T003", "T004", "T005"],
-  "key_risks": [
-    "Incompatibility of Flow with existing email settings, potential delays in receiving notifications.",
-    "Permission misconfiguration may restrict user access to Life Event records.",
-    "Testing phase may reveal unanticipated performance issues in production."
-  ],
-  "success_criteria": [
-    "Life Event objects can be created successfully with proper field values.",
-    "Email notifications are sent to the correct contacts upon Life Event creation.",
-    "Users can access and perform actions on Life Event records per the defined permissions."
-  ]
+  "key_risks": ["Delays in Flow configuration may affect the overall timeline.", "Profile permission settings might not apply correctly.", "UI layout may not match users' expectations or requirements."],
+  "success_criteria": ["Successful creation of the Life Event object with no errors.", "Email notifications are sent correctly and received by the intended recipients.", "Users can access the Life Event object as per the configured permissions."]
 }
