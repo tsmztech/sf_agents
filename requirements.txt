@@ -4,8 +4,8 @@ requests==2.32.3
 simple-salesforce==1.12.6
 openai==1.44.1
 typing-extensions>=4.0.0
-crewai==0.70.1
-crewai-tools==0.8.3
+crewai==0.150.0
+crewai-tools==0.12.1
 langchain-openai==0.1.23
 langchain-community==0.2.16
 pydantic>=2.0.0
