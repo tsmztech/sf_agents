@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Salesforce AI Agent Chat - Test Client</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: #1976d2;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        .status-panel {
+            background: #e3f2fd;
+            padding: 15px;
+            border-bottom: 1px solid #ddd;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #f44336;
+        }
+        .status-dot.connected {
+            background: #4caf50;
+        }
+        .agent-status {
+            display: flex;
+            gap: 20px;
+        }
+        .agent-card {
+            padding: 8px 12px;
+            border-radius: 6px;
+            background: #fff;
+            border: 1px solid #ddd;
+            font-size: 12px;
+            text-align: center;
+            min-width: 80px;
+        }
+        .agent-card.working {
+            background: #fff3e0;
+            border-color: #ff9800;
+        }
+        .agent-card.completed {
+            background: #e8f5e8;
+            border-color: #4caf50;
+        }
+        .agent-card.error {
+            background: #ffebee;
+            border-color: #f44336;
+        }
+        .chat-container {
+            display: flex;
+            height: 500px;
+        }
+        .chat-messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            border-right: 1px solid #ddd;
+        }
+        .logs-panel {
+            width: 300px;
+            background: #fafafa;
+            padding: 15px;
+            overflow-y: auto;
+        }
+        .message {
+            margin-bottom: 15px;
+            padding: 12px;
+            border-radius: 8px;
+            max-width: 80%;
+        }
+        .message.user {
+            background: #e3f2fd;
+            margin-left: auto;
+            text-align: right;
+        }
+        .message.agent {
+            background: #f1f8e9;
+        }
+        .message.system {
+            background: #fff3e0;
+            text-align: center;
+            margin: 10px auto;
+            max-width: 60%;
+            font-style: italic;
+        }
+        .message.error {
+            background: #ffebee;
+            color: #c62828;
+        }
+        .message-time {
+            font-size: 10px;
+            color: #666;
+            margin-top: 5px;
+        }
+        .input-area {
+            padding: 20px;
+            border-top: 1px solid #ddd;
+            background: #fafafa;
+        }
+        .input-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .message-input {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        .send-button {
+            padding: 12px 24px;
+            background: #1976d2;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .send-button:hover {
+            background: #1565c0;
+        }
+        .send-button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .log-entry {
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            margin-bottom: 8px;
+            padding: 6px;
+            background: white;
+            border-radius: 4px;
+            border-left: 3px solid #ddd;
+        }
+        .log-entry.INFO {
+            border-left-color: #2196f3;
+        }
+        .log-entry.ERROR {
+            border-left-color: #f44336;
+            background: #ffebee;
+        }
+        .log-entry.WARNING {
+            border-left-color: #ff9800;
+            background: #fff3e0;
+        }
+        .logs-header {
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #666;
+        }
+        .session-info {
+            font-size: 12px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 Salesforce AI Agent Chat</h1>
+            <p>Real-time WebSocket Test Client</p>
+        </div>
+        
+        <div class="status-panel">
+            <div class="status-indicator">
+                <div class="status-dot" id="statusDot"></div>
+                <span id="statusText">Disconnected</span>
+                <span class="session-info" id="sessionInfo"></span>
+            </div>
+            <div class="agent-status" id="agentStatus">
+                <div class="agent-card" id="masterOrchestrator">
+                    <div>Master Orchestrator</div>
+                    <div style="font-size: 10px; color: #666;">Ready</div>
+                </div>
+                <div class="agent-card" id="schemaExpert">
+                    <div>Schema Expert</div>
+                    <div style="font-size: 10px; color: #666;">Standby</div>
+                </div>
+                <div class="agent-card" id="technicalArchitect">
+                    <div>Technical Architect</div>
+                    <div style="font-size: 10px; color: #666;">Standby</div>
+                </div>
+                <div class="agent-card" id="dependencyResolver">
+                    <div>Dependency Resolver</div>
+                    <div style="font-size: 10px; color: #666;">Standby</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="chat-container">
+            <div class="chat-messages" id="chatMessages">
+                <div class="message system">
+                    <div>Welcome! Click "Connect" to start chatting with Salesforce AI agents.</div>
+                </div>
+            </div>
+            
+            <div class="logs-panel">
+                <div class="logs-header">📝 Real-time Logs</div>
+                <div id="logEntries"></div>
+            </div>
+        </div>
+        
+        <div class="input-area">
+            <div class="input-row">
+                <button onclick="connect()" id="connectBtn" class="send-button" style="background: #4caf50;">Connect</button>
+                <input type="text" 
+                       id="messageInput" 
+                       class="message-input" 
+                       placeholder="Type your Salesforce requirement here..."
+                       disabled>
+                <button onclick="sendMessage()" id="sendBtn" class="send-button" disabled>Send</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+        let sessionId = 'session_' + Date.now();
+        let connected = false;
+
+        function updateStatus(isConnected, text) {
+            const statusDot = document.getElementById('statusDot');
+            const statusText = document.getElementById('statusText');
+            const sessionInfo = document.getElementById('sessionInfo');
+            
+            connected = isConnected;
+            
+            if (isConnected) {
+                statusDot.classList.add('connected');
+                statusText.textContent = text || 'Connected';
+                sessionInfo.textContent = `Session: ${sessionId}`;
+            } else {
+                statusDot.classList.remove('connected');
+                statusText.textContent = text || 'Disconnected';
+                sessionInfo.textContent = '';
+            }
+            
+            document.getElementById('messageInput').disabled = !isConnected;
+            document.getElementById('sendBtn').disabled = !isConnected;
+            document.getElementById('connectBtn').textContent = isConnected ? 'Disconnect' : 'Connect';
+            document.getElementById('connectBtn').style.background = isConnected ? '#f44336' : '#4caf50';
+        }
+
+        function updateAgentStatus(agentName, status, message) {
+            const agentElements = {
+                'Master Orchestrator': 'masterOrchestrator',
+                'Schema Expert': 'schemaExpert',
+                'Technical Architect': 'technicalArchitect',
+                'Dependency Resolver': 'dependencyResolver'
+            };
+            
+            const elementId = agentElements[agentName];
+            if (elementId) {
+                const element = document.getElementById(elementId);
+                element.className = 'agent-card ' + status;
+                element.children[1].textContent = message;
+            }
+        }
+
+        function addMessage(type, content, timestamp) {
+            const chatMessages = document.getElementById('chatMessages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
+            
+            let icon = '';
+            switch(type) {
+                case 'user': icon = '👤'; break;
+                case 'agent': icon = '🤖'; break;
+                case 'system': icon = '💬'; break;
+                case 'error': icon = '❌'; break;
+            }
+            
+            messageDiv.innerHTML = `
+                <div>${icon} ${content}</div>
+                <div class="message-time">${new Date(timestamp).toLocaleTimeString()}</div>
+            `;
+            
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function addLogEntry(logData) {
+            const logEntries = document.getElementById('logEntries');
+            const logDiv = document.createElement('div');
+            logDiv.className = `log-entry ${logData.level || 'INFO'}`;
+            
+            const time = new Date(logData.timestamp || Date.now()).toLocaleTimeString();
+            logDiv.innerHTML = `
+                <div style="font-weight: bold; color: #333;">[${time}] ${logData.level || 'INFO'}</div>
+                <div style="color: #666;">${logData.logger || 'System'}</div>
+                <div>${logData.message}</div>
+            `;
+            
+            logEntries.appendChild(logDiv);
+            logEntries.scrollTop = logEntries.scrollHeight;
+            
+            // Keep only last 50 log entries
+            while (logEntries.children.length > 50) {
+                logEntries.removeChild(logEntries.firstChild);
+            }
+        }
+
+        function connect() {
+            if (connected) {
+                disconnect();
+                return;
+            }
+            
+            updateStatus(false, 'Connecting...');
+            
+            try {
+                ws = new WebSocket(`ws://localhost:8000/ws/${sessionId}`);
+                
+                ws.onopen = function(event) {
+                    updateStatus(true, 'Connected');
+                    addMessage('system', 'Connected to Salesforce AI Assistant', new Date().toISOString());
+                };
+                
+                ws.onmessage = function(event) {
+                    const data = JSON.parse(event.data);
+                    
+                    switch(data.type) {
+                        case 'system':
+                            addMessage('system', data.message, data.timestamp);
+                            break;
+                            
+                        case 'user_message_echo':
+                            addMessage('user', data.message, data.timestamp);
+                            break;
+                            
+                        case 'processing_started':
+                            addMessage('system', `🚀 ${data.message}`, data.timestamp);
+                            break;
+                            
+                        case 'agent_response':
+                            addMessage('agent', data.message, data.timestamp);
+                            break;
+                            
+                        case 'error':
+                            addMessage('error', data.message, data.timestamp);
+                            break;
+                            
+                        case 'log':
+                            addLogEntry(data.data);
+                            break;
+                            
+                        case 'agent_status':
+                            updateAgentStatus(data.agent, data.status, data.message);
+                            break;
+                            
+                        case 'pong':
+                            console.log('Received pong');
+                            break;
+                            
+                        case 'acknowledged':
+                            // User message was received and processing started
+                            console.log('Message acknowledged:', data.message);
+                            break;
+                            
+                        default:
+                            console.log('Unknown message type:', data.type, data);
+                    }
+                };
+                
+                ws.onclose = function(event) {
+                    updateStatus(false, 'Disconnected');
+                    addMessage('system', 'Disconnected from server', new Date().toISOString());
+                };
+                
+                ws.onerror = function(error) {
+                    updateStatus(false, 'Connection Error');
+                    addMessage('error', 'WebSocket connection error', new Date().toISOString());
+                };
+                
+            } catch (error) {
+                updateStatus(false, 'Connection Failed');
+                addMessage('error', `Failed to connect: ${error.message}`, new Date().toISOString());
+            }
+        }
+
+        function disconnect() {
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+            updateStatus(false);
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+            
+            if (!message || !connected) return;
+            
+            const messageData = {
+                type: 'user_message',
+                message: message,
+                timestamp: new Date().toISOString()
+            };
+            
+            ws.send(JSON.stringify(messageData));
+            input.value = '';
+        }
+
+        // Enter key to send message
+        document.getElementById('messageInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+
+        // Ping every 30 seconds to keep connection alive
+        setInterval(function() {
+            if (connected && ws) {
+                ws.send(JSON.stringify({type: 'ping'}));
+            }
+        }, 30000);
+
+        // Auto-connect on page load
+        window.addEventListener('load', function() {
+            setTimeout(connect, 1000);
+        });
+    </script>
+</body>
+</html> 

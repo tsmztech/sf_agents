@@ -19,7 +19,7 @@
           "required": true
         },
         {
-          "name": "Contact Lookup",
+          "name": "Contact",
           "api_name": "Contact__c",
           "type": "Lookup",
           "required": true
@@ -34,11 +34,8 @@
     }
   ],
   "implementation_notes": [
-    "Ensure that the Contact object is leveraged for linking Life Events.",
-    "Add validation rules to ensure event name and date are filled.",
-    "Monitor the volume of Life Events and optimize data handling."
+    "Access to the Life Event object will be restricted to the System Admin profile only.",
+    "An email notification will be triggered when a new Life Event record is created, sent to the associated Contact's email address.",
+    "Ensure the custom object is built to handle potentially high volumes of data, as each contact may have numerous life events."
   ]
 }
-``` 
-
-This analysis highlights the key entities and relationships necessary for the implementation of Life Events associated with Contacts, focusing on minimalist designs that allow for expanded functionality in the future.

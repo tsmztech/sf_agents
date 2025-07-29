@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>⚡ Salesforce AI Agent System</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8f9fa;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        .app-container {
+            display: flex;
+            height: 100vh;
+            width: 100vw;
+        }
+        
+        /* Left Sidebar - Agent Details */
+        .sidebar {
+            width: 300px;
+            background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            overflow-y: auto;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+        }
+        
+        .sidebar h1 {
+            font-size: 18px;
+            margin-bottom: 5px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .sidebar .subtitle {
+            font-size: 12px;
+            opacity: 0.8;
+            margin-bottom: 20px;
+        }
+        
+        .version {
+            font-size: 10px;
+            opacity: 0.6;
+            margin-bottom: 25px;
+        }
+        
+        .config-section {
+            margin-bottom: 25px;
+        }
+        
+        .section-title {
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .config-item {
+            background: rgba(255,255,255,0.1);
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            font-size: 12px;
+        }
+        
+        .config-item.success {
+            background: rgba(76, 175, 80, 0.2);
+            border-left: 3px solid #4caf50;
+        }
+        
+        .agent-system-section {
+            background: rgba(255,255,255,0.1);
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .agent-status-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .agent-card-mini {
+            background: rgba(255,255,255,0.1);
+            padding: 8px;
+            border-radius: 6px;
+            text-align: center;
+            font-size: 10px;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        
+        .agent-card-mini.working {
+            background: rgba(255, 193, 7, 0.3);
+            border-color: #ffc107;
+        }
+        
+        .agent-card-mini.completed {
+            background: rgba(76, 175, 80, 0.3);
+            border-color: #4caf50;
+        }
+        
+        .agent-card-mini.error {
+            background: rgba(244, 67, 54, 0.3);
+            border-color: #f44336;
+        }
+        
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 11px;
+            margin-top: 15px;
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #f44336;
+        }
+        
+        .status-dot.connected {
+            background: #4caf50;
+        }
+        
+        /* Main Chat Area */
+        .chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: white;
+        }
+        
+        .chat-header {
+            background: white;
+            padding: 15px 20px;
+            border-bottom: 1px solid #e0e0e0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .chat-header h2 {
+            font-size: 16px;
+            color: #333;
+            margin: 0;
+        }
+        
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: #f8f9fa;
+        }
+        
+        .message-bubble {
+            margin-bottom: 20px;
+            max-width: 80%;
+            animation: slideIn 0.3s ease-out;
+        }
+        
+        .message-bubble.user {
+            margin-left: auto;
+            text-align: right;
+        }
+        
+        .message-bubble.agent {
+            margin-right: auto;
+        }
+        
+        .message-bubble.system {
+            margin: 10px auto;
+            max-width: 60%;
+            text-align: center;
+        }
+        
+        .message-content {
+            padding: 12px 16px;
+            border-radius: 18px;
+            word-wrap: break-word;
+            line-height: 1.4;
+        }
+        
+        .message-bubble.user .message-content {
+            background: linear-gradient(135deg, #007bff, #0056b3);
+            color: white;
+        }
+        
+        .message-bubble.agent .message-content {
+            background: #f1f8e9;
+            color: #333;
+            border: 1px solid #e8f5e8;
+        }
+        
+        .message-bubble.system .message-content {
+            background: #fff3e0;
+            color: #e65100;
+            font-style: italic;
+            border: 1px solid #ffcc02;
+        }
+        
+        .message-bubble.error .message-content {
+            background: #ffebee;
+            color: #c62828;
+            border: 1px solid #f44336;
+        }
+        
+        .message-meta {
+            font-size: 10px;
+            color: #666;
+            margin-top: 5px;
+        }
+        
+        .message-bubble.user .message-meta {
+            text-align: right;
+        }
+        
+        /* Markdown content styling */
+        .message-content h1, .message-content h2, .message-content h3 {
+            margin: 10px 0 5px 0;
+            color: inherit;
+        }
+        
+        .message-content ul, .message-content ol {
+            margin: 8px 0;
+            padding-left: 20px;
+        }
+        
+        .message-content li {
+            margin: 4px 0;
+        }
+        
+        .message-content code {
+            background: rgba(0,0,0,0.1);
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+        }
+        
+        .message-content pre {
+            background: rgba(0,0,0,0.1);
+            padding: 10px;
+            border-radius: 6px;
+            overflow-x: auto;
+            margin: 8px 0;
+        }
+        
+        .message-content blockquote {
+            border-left: 3px solid #ddd;
+            margin: 8px 0;
+            padding-left: 12px;
+            color: #666;
+        }
+        
+        .message-content p {
+            margin: 8px 0;
+        }
+        
+        .message-content strong {
+            font-weight: bold;
+        }
+        
+        .message-content em {
+            font-style: italic;
+        }
+        
+        /* Chat Input */
+        .chat-input {
+            padding: 20px;
+            background: white;
+            border-top: 1px solid #e0e0e0;
+        }
+        
+        .input-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .message-input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 1px solid #ddd;
+            border-radius: 25px;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+        
+        .message-input:focus {
+            border-color: #007bff;
+        }
+        
+        .send-button {
+            padding: 12px 20px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .send-button:hover:not(:disabled) {
+            background: #0056b3;
+        }
+        
+        .send-button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        /* Right Logs Panel */
+        .logs-panel {
+            width: 350px;
+            background: #2d3748;
+            color: #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            box-shadow: -2px 0 10px rgba(0,0,0,0.1);
+        }
+        
+        .logs-header {
+            padding: 15px 20px;
+            background: #1a202c;
+            border-bottom: 1px solid #4a5568;
+            font-weight: bold;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .logs-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            line-height: 1.4;
+        }
+        
+        .log-entry {
+            margin-bottom: 8px;
+            padding: 6px 8px;
+            border-radius: 4px;
+            background: rgba(255,255,255,0.05);
+            border-left: 3px solid #4a5568;
+        }
+        
+        .log-entry.INFO {
+            border-left-color: #3182ce;
+            background: rgba(49, 130, 206, 0.1);
+        }
+        
+        .log-entry.ERROR {
+            border-left-color: #e53e3e;
+            background: rgba(229, 62, 62, 0.1);
+        }
+        
+        .log-entry.WARNING {
+            border-left-color: #d69e2e;
+            background: rgba(214, 158, 46, 0.1);
+        }
+        
+        .log-timestamp {
+            color: #a0aec0;
+            font-weight: bold;
+        }
+        
+        .log-level {
+            font-weight: bold;
+        }
+        
+        .log-level.INFO {
+            color: #63b3ed;
+        }
+        
+        .log-level.ERROR {
+            color: #fc8181;
+        }
+        
+        .log-level.WARNING {
+            color: #f6e05e;
+        }
+        
+        .log-logger {
+            color: #cbd5e0;
+        }
+        
+        .log-message {
+            color: #e2e8f0;
+            margin-top: 2px;
+        }
+        
+        /* Animations */
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 3px;
+        }
+        
+        .logs-content::-webkit-scrollbar-thumb {
+            background: #4a5568;
+        }
+        
+        /* Responsive design */
+        @media (max-width: 1200px) {
+            .sidebar {
+                width: 250px;
+            }
+            .logs-panel {
+                width: 300px;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 200px;
+            }
+            .logs-panel {
+                width: 250px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Left Sidebar -->
+        <div class="sidebar">
+            <h1>⚡ Salesforce AI Agent System</h1>
+            <div class="subtitle">An intelligent agentic AI system for Salesforce implementation planning</div>
+            <div class="version">v1.0.0</div>
+            
+            <div class="config-section">
+                <div class="section-title">🔧 Configuration</div>
+                <div class="config-item success">
+                    ✅ OpenAI API configured
+                </div>
+            </div>
+            
+            <div class="config-section">
+                <div class="section-title">🤖 AI Agent System</div>
+                <div class="agent-system-section">
+                    <div style="font-size: 12px; margin-bottom: 8px;">
+                        🤖 <strong>Automatic Multi-Agent Orchestration</strong> - The system intelligently coordinates specialist agents behind the scenes
+                    </div>
+                    
+                    <div style="font-size: 11px; color: rgba(255,255,255,0.8);">
+                        ✅ <strong>Master Orchestrator Active</strong> - Coordinating Schema Expert, Technical Architect, and Dependency Resolver agents
+                    </div>
+                    
+                    <div class="agent-status-grid">
+                        <div class="agent-card-mini" id="masterOrchestratorMini">
+                            <div style="font-weight: bold;">Master Orchestrator</div>
+                            <div style="margin-top: 3px;">Ready</div>
+                        </div>
+                        <div class="agent-card-mini" id="schemaExpertMini">
+                            <div style="font-weight: bold;">Schema Expert</div>
+                            <div style="margin-top: 3px;">Standby</div>
+                        </div>
+                        <div class="agent-card-mini" id="technicalArchitectMini">
+                            <div style="font-weight: bold;">Technical Architect</div>
+                            <div style="margin-top: 3px;">Standby</div>
+                        </div>
+                        <div class="agent-card-mini" id="dependencyResolverMini">
+                            <div style="font-weight: bold;">Dependency Resolver</div>
+                            <div style="margin-top: 3px;">Standby</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="config-section">
+                <div class="section-title">🌐 CrewAI Mode</div>
+                <div style="font-size: 11px; color: rgba(255,255,255,0.8);">
+                    True autonomous agent collaboration
+                </div>
+            </div>
+            
+            <div class="connection-status">
+                <div class="status-dot" id="connectionDot"></div>
+                <span id="connectionStatus">Connecting...</span>
+            </div>
+            <div style="font-size: 10px; color: rgba(255,255,255,0.6); margin-top: 5px;" id="sessionInfo"></div>
+        </div>
+        
+        <!-- Main Chat Area -->
+        <div class="chat-container">
+            <div class="chat-header">
+                <h2>💬 Salesforce AI Agent Chat</h2>
+            </div>
+            
+            <div class="chat-messages" id="chatMessages">
+                <div class="message-bubble system">
+                    <div class="message-content">
+                        Welcome! Describe your Salesforce requirement to get started with the AI agent system.
+                    </div>
+                </div>
+            </div>
+            
+            <div class="chat-input">
+                <div class="input-row">
+                    <input type="text" 
+                           id="messageInput" 
+                           class="message-input" 
+                           placeholder="Describe your Salesforce requirement..."
+                           disabled>
+                    <button id="sendBtn" class="send-button" disabled>Send</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Right Logs Panel -->
+        <div class="logs-panel">
+            <div class="logs-header">
+                📝 Real-time Logs
+            </div>
+            <div class="logs-content" id="logsContent">
+                <div class="log-entry INFO">
+                    <div class="log-timestamp">[Starting]</div>
+                    <div class="log-level INFO">INFO</div>
+                    <div class="log-logger">System</div>
+                    <div class="log-message">Initializing Salesforce AI Agent System...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+        let sessionId = 'session_' + Date.now();
+        let connected = false;
+
+        function updateConnectionStatus(isConnected, text) {
+            const dot = document.getElementById('connectionDot');
+            const status = document.getElementById('connectionStatus');
+            const sessionInfo = document.getElementById('sessionInfo');
+            
+            connected = isConnected;
+            
+            if (isConnected) {
+                dot.classList.add('connected');
+                status.textContent = text || 'Connected';
+                sessionInfo.textContent = `Session: ${sessionId}`;
+            } else {
+                dot.classList.remove('connected');
+                status.textContent = text || 'Disconnected';
+                sessionInfo.textContent = '';
+            }
+            
+            document.getElementById('messageInput').disabled = !isConnected;
+            document.getElementById('sendBtn').disabled = !isConnected;
+        }
+
+        function updateAgentStatus(agentName, status, message) {
+            const agentMap = {
+                'Master Orchestrator': 'masterOrchestratorMini',
+                'Schema Expert': 'schemaExpertMini',
+                'Technical Architect': 'technicalArchitectMini',
+                'Dependency Resolver': 'dependencyResolverMini'
+            };
+            
+            const elementId = agentMap[agentName];
+            if (elementId) {
+                const element = document.getElementById(elementId);
+                element.className = 'agent-card-mini ' + status;
+                element.children[1].textContent = message;
+            }
+        }
+
+        function addMessage(type, content, timestamp) {
+            const chatMessages = document.getElementById('chatMessages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message-bubble ${type}`;
+            
+            // For agent messages, render markdown
+            let processedContent = content;
+            if (type === 'agent') {
+                processedContent = marked.parse(content);
+            } else {
+                // Escape HTML for non-agent messages
+                processedContent = content.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            }
+            
+            messageDiv.innerHTML = `
+                <div class="message-content">${processedContent}</div>
+                <div class="message-meta">${new Date(timestamp).toLocaleTimeString()}</div>
+            `;
+            
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function addLogEntry(logData) {
+            const logsContent = document.getElementById('logsContent');
+            const logDiv = document.createElement('div');
+            logDiv.className = `log-entry ${logData.level || 'INFO'}`;
+            
+            const time = new Date(logData.timestamp || Date.now()).toLocaleTimeString();
+            logDiv.innerHTML = `
+                <div class="log-timestamp">[${time}]</div>
+                <div class="log-level ${logData.level || 'INFO'}">${logData.level || 'INFO'}</div>
+                <div class="log-logger">${logData.logger || 'System'}</div>
+                <div class="log-message">${logData.message}</div>
+            `;
+            
+            logsContent.appendChild(logDiv);
+            logsContent.scrollTop = logsContent.scrollHeight;
+            
+            // Keep only last 100 log entries
+            while (logsContent.children.length > 100) {
+                logsContent.removeChild(logsContent.firstChild);
+            }
+        }
+
+        function connect() {
+            updateConnectionStatus(false, 'Connecting...');
+            
+            try {
+                ws = new WebSocket(`ws://localhost:8000/ws/${sessionId}`);
+                
+                ws.onopen = function(event) {
+                    updateConnectionStatus(true, 'Connected');
+                    addMessage('system', '✅ Connected to Salesforce AI Assistant', new Date().toISOString());
+                };
+                
+                ws.onmessage = function(event) {
+                    const data = JSON.parse(event.data);
+                    
+                    switch(data.type) {
+                        case 'system':
+                            addMessage('system', data.message, data.timestamp);
+                            break;
+                            
+                        case 'user_message_echo':
+                            addMessage('user', data.message, data.timestamp);
+                            break;
+                            
+                        case 'processing_started':
+                            addMessage('system', `🚀 ${data.message}`, data.timestamp);
+                            break;
+                            
+                        case 'agent_response':
+                            addMessage('agent', data.message, data.timestamp);
+                            break;
+                            
+                        case 'error':
+                            addMessage('error', data.message, data.timestamp);
+                            break;
+                            
+                        case 'log':
+                            addLogEntry(data.data);
+                            break;
+                            
+                        case 'agent_status':
+                            updateAgentStatus(data.agent, data.status, data.message);
+                            break;
+                            
+                        case 'pong':
+                            console.log('Received pong');
+                            break;
+                            
+                        case 'acknowledged':
+                            console.log('Message acknowledged:', data.message);
+                            break;
+                            
+                        default:
+                            console.log('Unknown message type:', data.type, data);
+                    }
+                };
+                
+                ws.onclose = function(event) {
+                    updateConnectionStatus(false, 'Disconnected');
+                    addMessage('system', '❌ Disconnected from server', new Date().toISOString());
+                    
+                    // Auto-reconnect after 3 seconds
+                    setTimeout(connect, 3000);
+                };
+                
+                ws.onerror = function(error) {
+                    updateConnectionStatus(false, 'Connection Error');
+                    addMessage('error', '🔌 WebSocket connection error', new Date().toISOString());
+                };
+                
+            } catch (error) {
+                updateConnectionStatus(false, 'Connection Failed');
+                addMessage('error', `Failed to connect: ${error.message}`, new Date().toISOString());
+            }
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+            
+            if (!message || !connected) return;
+            
+            const messageData = {
+                type: 'user_message',
+                message: message,
+                timestamp: new Date().toISOString()
+            };
+            
+            ws.send(JSON.stringify(messageData));
+            input.value = '';
+        }
+
+        // Enter key to send message
+        document.getElementById('messageInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        // Send button click
+        document.getElementById('sendBtn').addEventListener('click', sendMessage);
+
+        // Ping every 30 seconds to keep connection alive
+        setInterval(function() {
+            if (connected && ws) {
+                ws.send(JSON.stringify({type: 'ping'}));
+            }
+        }, 30000);
+
+        // Auto-connect on page load
+        window.addEventListener('load', function() {
+            setTimeout(connect, 500);
+        });
+    </script>
+</body>
+</html> 
