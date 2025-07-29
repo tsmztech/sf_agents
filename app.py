@@ -1,12 +1,20 @@
 import streamlit as st
 import time
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Union, List
 import json
 from datetime import datetime
 import logging
 
 from agents.master_agent import SalesforceRequirementDeconstructorAgent
 from config import Config
+# Import CrewAI implementation
+from salesforce_crew import CrewExecutor, analyze_salesforce_requirement, is_complex_requirement
+
+# Safe import of CrewOutput
+try:
+    from crewai.crew import CrewOutput
+except ImportError:
+    CrewOutput = None
 
 # Configure Streamlit page
 st.set_page_config(
@@ -246,6 +254,109 @@ st.markdown("""
         0%, 100% { transform: scale(1); opacity: 1; }
         50% { transform: scale(1.02); opacity: 0.9; }
     }
+
+    /* Enhanced chat styling */
+    .user-message, .agent-message, .system-message {
+        margin: 1rem 0;
+        padding: 1rem;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        animation: fadeIn 0.5s ease-in;
+    }
+    
+    .user-message {
+        background: linear-gradient(135deg, #0176D3 0%, #005FB8 100%);
+        color: white;
+        margin-left: 2rem;
+        border-bottom-right-radius: 4px;
+    }
+    
+    .agent-message {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        color: #212529;
+        margin-right: 2rem;
+        border-bottom-left-radius: 4px;
+        border-left: 4px solid #0176D3;
+    }
+    
+    .system-message {
+        background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+        color: #1565c0;
+        margin: 0.5rem 0;
+        border-left: 4px solid #2196f3;
+        font-style: italic;
+    }
+    
+    .agent-status {
+        background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+        color: #856404;
+        margin: 0.5rem 0;
+        padding: 0.75rem;
+        border-radius: 8px;
+        border-left: 4px solid #ffc107;
+        font-size: 0.9rem;
+    }
+    
+    .agent-status-completed {
+        background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+        color: #155724;
+        border-left: 4px solid #28a745;
+    }
+    
+    .user-label, .agent-label {
+        font-size: 0.8rem;
+        color: #6c757d;
+        margin-bottom: 0.25rem;
+        font-weight: 500;
+    }
+    
+    .message-bubble {
+        line-height: 1.5;
+        word-wrap: break-word;
+    }
+    
+    /* Real-time agent activity styling */
+    .agent-activity-container {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 1rem;
+        margin: 1rem 0;
+    }
+    
+    .agent-progress-bar {
+        background: linear-gradient(90deg, #0176D3 0%, #005FB8 100%);
+        height: 4px;
+        border-radius: 2px;
+        transition: width 0.3s ease;
+    }
+    
+    .agent-queue-item {
+        display: flex;
+        align-items: center;
+        padding: 0.5rem;
+        margin: 0.2rem 0;
+        border-radius: 4px;
+        transition: all 0.3s ease;
+    }
+    
+    .agent-queue-item:hover {
+        background: rgba(0,0,0,0.05);
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.7; }
+    }
+    
+    .processing {
+        animation: pulse 2s infinite;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -259,6 +370,12 @@ def initialize_session_state():
         st.session_state.current_session_id = None
     if 'processing' not in st.session_state:
         st.session_state.processing = False
+    
+    # CrewAI settings
+    if 'use_crewai' not in st.session_state:
+        st.session_state.use_crewai = True  # Default to new CrewAI system
+    if 'crew_interactive_mode' not in st.session_state:
+        st.session_state.crew_interactive_mode = 'auto'  # auto, always, never
     
     # Configuration state
     if 'config_complete' not in st.session_state:
@@ -595,7 +712,12 @@ def display_agent_status_indicators():
         # Determine status
         if active_agent == agent["key"]:
             status_class = "active"
-            status_text = "🟢 Active"
+            # Show working time if available
+            if st.session_state.get('agent_start_time'):
+                elapsed = time.time() - st.session_state.agent_start_time
+                status_text = f"🟢 Working ({elapsed:.0f}s)"
+            else:
+                status_text = "🟢 Active"
         elif is_agent_pending(agent["key"]):
             status_class = "pending" 
             status_text = "🟡 Pending"
@@ -603,11 +725,12 @@ def display_agent_status_indicators():
             status_class = "inactive"
             status_text = "⚪ Idle"
         
-        # Create the indicator
+        # Create the indicator with status text
         indicator_html = f"""
         <div class="agent-indicator {status_class}">
             <span class="agent-icon">{agent["icon"]}</span>
             <span>{agent["name"]}</span>
+            <small style="margin-left: auto; opacity: 0.8;">{status_text.split(' ', 1)[1] if ' ' in status_text else ''}</small>
         </div>
         """
         
@@ -615,8 +738,27 @@ def display_agent_status_indicators():
     
     st.markdown('</div>', unsafe_allow_html=True)
 
+def update_agent_status(agent_key: str, status: str = "active"):
+    """Update the current active agent status for real-time display."""
+    if 'current_active_agent' not in st.session_state:
+        st.session_state.current_active_agent = None
+    
+    if 'agent_start_time' not in st.session_state:
+        st.session_state.agent_start_time = None
+    
+    if status == "active":
+        st.session_state.current_active_agent = agent_key
+        st.session_state.agent_start_time = time.time()
+    elif status == "completed":
+        st.session_state.current_active_agent = None
+        st.session_state.agent_start_time = None
+
 def get_current_active_agent():
     """Determine which agent is currently active based on conversation state and activities."""
+    
+    # First check real-time CrewAI status
+    if st.session_state.get('current_active_agent'):
+        return st.session_state.current_active_agent
     
     # First check if any agent is actively working (from agent activities)
     if 'agent_activities' in st.session_state:
@@ -686,6 +828,33 @@ def display_sidebar():
         # Configuration status
         st.subheader("🔧 Configuration")
         st.success("✅ OpenAI API configured")
+        
+        # CrewAI Settings
+        st.subheader("🤖 Agent System")
+        crew_mode = st.toggle(
+            "🚀 Use CrewAI (Recommended)", 
+            value=st.session_state.use_crewai,
+            help="CrewAI provides authentic agentic collaboration vs manual orchestration"
+        )
+        
+        if crew_mode != st.session_state.use_crewai:
+            st.session_state.use_crewai = crew_mode
+            st.rerun()
+        
+        if st.session_state.use_crewai:
+            st.caption("✨ **CrewAI Mode**: True autonomous agent collaboration")
+            
+            interactive_mode = st.selectbox(
+                "Interactive Review",
+                options=['auto', 'always', 'never'],
+                index=0 if st.session_state.crew_interactive_mode == 'auto' else 
+                      1 if st.session_state.crew_interactive_mode == 'always' else 2,
+                help="When to enable human review of agent recommendations"
+            )
+            st.session_state.crew_interactive_mode = interactive_mode
+            
+        else:
+            st.caption("⚙️ **Legacy Mode**: Manual agent orchestration")
         
         # Salesforce connection status
         if st.session_state.agent and hasattr(st.session_state.agent.schema_expert, 'sf_connected'):
@@ -779,8 +948,8 @@ def display_sidebar():
         if st.session_state.conversation_history:
             st.subheader("📤 Export")
             
-            # Export conversation
-            conversation_json = json.dumps(st.session_state.conversation_history, indent=2)
+            # Export conversation with safe serialization
+            conversation_json = safe_json_serialize(st.session_state.conversation_history)
             st.download_button(
                 label="💾 Download Conversation",
                 data=conversation_json,
@@ -850,9 +1019,169 @@ def load_session(session_id: str):
     except Exception as e:
         st.error(f"Error loading session: {e}")
 
-def process_user_input(user_input: str):
-    """Process user input through the agent."""
-    import time
+def process_user_input(user_input: str, use_crewai: bool = True):
+    """
+    Process user input - can use either CrewAI or legacy agent system.
+    CrewAI is the new default for authentic agentic collaboration.
+    """
+    
+    if use_crewai:
+        return process_user_input_crewai(user_input)
+    else:
+        return process_user_input_legacy(user_input)
+
+def process_user_input_crewai(user_input: str, use_interactive: bool = None):
+    """
+    Process user input using CrewAI crew.
+    This is the new implementation with authentic agentic collaboration.
+    """
+    
+    if not user_input.strip():
+        st.warning("Please enter a valid requirement or message.")
+        return
+    
+    # Show processing indicator
+    st.session_state.processing = True
+    
+    try:
+        # Add user message to conversation history immediately
+        user_message = {
+            'role': 'user',
+            'content': user_input,
+            'timestamp': datetime.now().isoformat(),
+            'message_type': 'requirement'
+        }
+        
+        if 'conversation_history' not in st.session_state:
+            st.session_state.conversation_history = []
+        
+        st.session_state.conversation_history.append(user_message)
+        
+        # Determine if we should use interactive mode based on settings
+        if use_interactive is None:
+            interactive_setting = st.session_state.get('crew_interactive_mode', 'auto')
+            if interactive_setting == 'always':
+                use_interactive = True
+            elif interactive_setting == 'never':
+                use_interactive = False
+            else:  # auto
+                use_interactive = is_complex_requirement(user_input)
+        
+        # Show crew launch message
+        crew_type = "Interactive" if use_interactive else "Standard"
+        st.info(f"🚀 Launching {crew_type} Salesforce Implementation Crew...")
+        
+        if use_interactive:
+            st.info("💡 Complex requirement detected - human review will be available")
+        
+        # Execute CrewAI analysis with progress tracking
+        progress_placeholder = st.empty()
+        
+        with st.spinner("🤖 Agents are collaborating on your requirement..."):
+            try:
+                # Initialize status tracking
+                update_agent_status("schema", "active")
+                
+                # Show initial progress
+                progress_placeholder.info("🗄️ **Schema Expert** is analyzing requirements...")
+                
+                result = analyze_salesforce_requirement(
+                    requirement=user_input,
+                    interactive=use_interactive,
+                    user_context=st.session_state.get('user_context', {}),
+                    org_context=st.session_state.get('org_context', {})
+                )
+                
+                # Clear progress and mark completion
+                progress_placeholder.empty()
+                update_agent_status("", "completed")
+                
+                if not result:
+                    st.error("❌ CrewAI returned empty result")
+                    return
+                    
+            except Exception as e:
+                progress_placeholder.empty()
+                update_agent_status("", "completed")
+                st.error(f"❌ CrewAI execution failed: {str(e)}")
+                import traceback
+                st.error("Full error:")
+                st.code(traceback.format_exc())
+                return
+        
+        # Handle results
+        if result['success']:
+            # Convert result to JSON-serializable format before storing
+            serializable_result = make_json_serializable(result)
+            
+            # Add crew result to conversation history
+            crew_message = {
+                'role': 'agent',
+                'content': f"✅ **Implementation Plan Complete!**\n\nThe {crew_type} crew has successfully analyzed your requirement and created a comprehensive implementation plan.",
+                'timestamp': datetime.now().isoformat(),
+                'message_type': 'crew_result',
+                'crew_data': serializable_result
+            }
+            st.session_state.conversation_history.append(crew_message)
+            
+            # Display results
+            display_crewai_results(result)
+            
+            # Success message
+            st.success("🎉 Implementation plan created successfully!")
+            st.balloons()
+            
+        else:
+            # Handle error with better messaging
+            error_type = result.get('error_type', 'general')
+            error_msg = result.get('error', 'Unknown error')
+            suggestion = result.get('suggestion', '')
+            
+            if error_type == 'rate_limit':
+                st.error("🚦 **Rate Limit Exceeded**")
+                st.warning(error_msg)
+                if suggestion:
+                    st.info(f"💡 **Suggestion**: {suggestion}")
+            elif error_type == 'token_limit':
+                st.error("📝 **Request Too Large**") 
+                st.warning(error_msg)
+                if suggestion:
+                    st.info(f"💡 **Suggestion**: {suggestion}")
+            elif result.get('timeout'):
+                st.error("⏰ **Execution Timeout**")
+                st.warning(error_msg)
+                if suggestion:
+                    st.info(f"💡 **Suggestion**: {suggestion}")
+            else:
+                st.error(f"❌ **Analysis Failed**: {error_msg}")
+            
+            # Add error to conversation history
+            error_message = {
+                'role': 'agent', 
+                'content': f"❌ **Analysis Failed**\n\n{error_msg}\n\n{suggestion if suggestion else ''}",
+                'timestamp': datetime.now().isoformat(),
+                'message_type': 'error'
+            }
+            st.session_state.conversation_history.append(error_message)
+    
+    except Exception as e:
+        error_message = {
+            'role': 'agent',
+            'content': f"❌ **System Error**\n\nAn unexpected error occurred: {str(e)}",
+            'timestamp': datetime.now().isoformat(),
+            'message_type': 'system_error'
+        }
+        st.session_state.conversation_history.append(error_message)
+        st.error(f"System error: {str(e)}")
+        
+    finally:
+        st.session_state.processing = False
+
+def process_user_input_legacy(user_input: str):
+    """
+    Process user input using the legacy agent system.
+    This maintains compatibility with the old manual orchestration.
+    """
     
     if not user_input.strip():
         st.warning("Please enter a valid requirement or message.")
@@ -867,99 +1196,165 @@ def process_user_input(user_input: str):
     st.session_state.processing = True
     
     try:
-        # Determine which agent will be working based on conversation state
-        current_state = st.session_state.agent.conversation_state
+        # Add user message to conversation history
+        user_message = {
+            'role': 'user',
+            'content': user_input,
+            'timestamp': datetime.now().isoformat(),
+            'message_type': 'requirement'
+        }
         
-        if current_state == "initial" or current_state == "clarifying":
-            add_agent_activity("Master Agent", "is analyzing your requirements...")
-        elif current_state == "suggestions_review":
-            add_agent_activity("Master Agent", "is processing your selection...")
-        elif current_state == "technical_design":
-            add_agent_activity("Technical Architect", "is creating detailed architecture...")
-        elif current_state == "task_creation":
-            add_agent_activity("Dependency Resolver", "is creating implementation tasks...")
-        elif current_state == "final_review":
-            add_agent_activity("Master Agent", "is processing your review...")
-        elif current_state == "planning":
-            add_agent_activity("Master Agent", "is creating your implementation plan...")
-        else:
-            add_agent_activity("Master Agent", "is processing your request...")
+        if 'conversation_history' not in st.session_state:
+            st.session_state.conversation_history = []
         
-        # Process the input through the agent
-        start_time = time.time()
-        result = st.session_state.agent.process_user_input(user_input)
+        st.session_state.conversation_history.append(user_message)
         
-        # Complete the current agent activity
-        complete_agent_activity("Master Agent")
+        # Process through legacy agent system
+        st.info("⚙️ Processing with legacy agent system...")
         
-        # Handle special cases that trigger additional agents
-        if result['type'] == 'ready_for_expert_analysis':
-            # Add schema expert agent activity
-            add_agent_activity("Schema Expert", "is analyzing data model requirements...")
-            st.info("🔍 Consulting with Salesforce Schema Expert...")
-            
-            # Trigger schema analysis using the dedicated method
-            expert_start = time.time()
-            expert_result = st.session_state.agent.trigger_expert_analysis()
-            complete_agent_activity("Schema Expert")
-            
-            if expert_result.get('type') == 'expert_suggestions':
-                st.success("📋 Schema recommendations ready for your review!")
-            elif expert_result.get('type') == 'error_fallback':
-                st.warning("⚠️ Schema analysis encountered issues, but we can still proceed with implementation planning.")
+        with st.spinner("Processing your requirement..."):
+            result = st.session_state.agent.process_user_input(user_input)
         
-        # Update conversation history
+        # Update conversation history from agent
         st.session_state.conversation_history = st.session_state.agent.get_conversation_history()
         
-        # Show success message based on result type
-        if result['type'] == 'implementation_plan':
+        # Handle result
+        if result.get('type') == 'implementation_plan':
             st.success("🎉 Implementation plan created successfully!")
-            st.balloons()
-        elif result['type'] == 'clarification_needed':
-            st.info("🤔 Agent needs more information to proceed.")
-        elif result['type'] == 'expert_suggestions':
+        elif result.get('type') == 'expert_suggestions':
             st.success("💡 Expert suggestions ready for your review!")
-        elif result['type'] == 'suggestions_accepted':
-            st.success("✅ Expert suggestions incorporated!")
-            # Check if we need to trigger next phase
-            if result.get('trigger_next'):
-                # Set up automatic progression to next phase
-                st.session_state.pending_next_phase = result['trigger_next']
-                st.rerun()  # Trigger rerun to execute next phase
-        elif result['type'] == 'original_requirements_only':
-            st.info("👍 Proceeding with original requirements.")
-            # Check if we need to trigger next phase
-            if result.get('trigger_next'):
-                # Set up automatic progression to next phase
-                st.session_state.pending_next_phase = result['trigger_next']
-                st.rerun()  # Trigger rerun to execute next phase
-        elif result['type'] == 'technical_design_complete':
-            st.success("🏗️ Technical architecture completed!")
-            # Check if we need to trigger next phase
-            if result.get('trigger_next'):
-                # Set up automatic progression to next phase
-                st.session_state.pending_next_phase = result['trigger_next']
-                st.rerun()  # Trigger rerun to execute next phase
-        elif result['type'] == 'task_creation_complete':
-            st.success("📋 Implementation tasks created!")
-        elif result['type'] == 'custom_selection_confirmed':
-            st.success("🔧 Custom suggestions incorporated!")
-        elif result['type'] == 'ready_for_planning':
-            st.info("✅ Agent is ready to create the implementation plan.")
+        elif result.get('type') == 'error':
+            st.error(f"Error: {result.get('message', 'Unknown error')}")
+        else:
+            st.info("Agent response processed.")
     
     except Exception as e:
-        # Complete any active agent activities on error
-        if 'agent_activities' in st.session_state:
-            for activity in st.session_state.agent_activities:
-                if activity.get('status') == 'active':
-                    complete_agent_activity(activity['agent'])
+        error_message = {
+            'role': 'agent',
+            'content': f"❌ **Legacy System Error**\n\nAn error occurred: {str(e)}",
+            'timestamp': datetime.now().isoformat(),
+            'message_type': 'system_error'
+        }
+        st.session_state.conversation_history.append(error_message)
+        st.error(f"Legacy system error: {str(e)}")
         
-        st.error(f"Error processing your request: {e}")
-        if Config.DEBUG:
-            st.exception(e)
-    
     finally:
         st.session_state.processing = False
+
+def display_crewai_results(result: dict):
+    """Display CrewAI crew results in Streamlit."""
+    
+    if not result.get('success'):
+        st.error("Crew execution failed")
+        return
+    
+    outputs = result.get('outputs', {})
+    crew_type = result.get('crew_type', 'standard')
+    
+    # Show agent collaboration summary
+    with st.expander("👥 Agent Collaboration Summary", expanded=True):
+        st.markdown("### How the agents worked together:")
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.markdown("**🗄️ Schema Expert**")
+            if 'schema_analysis' in outputs:
+                st.success("✅ Analyzed schema requirements")
+            else:
+                st.info("⏳ Schema analysis in progress...")
+        
+        with col2:
+            st.markdown("**🏗️ Technical Architect**") 
+            if 'technical_design' in outputs:
+                st.success("✅ Created technical design")
+            else:
+                st.info("⏳ Technical design pending...")
+        
+        with col3:
+            st.markdown("**📋 Dependency Resolver**")
+            if 'implementation_plan' in outputs:
+                st.success("✅ Generated implementation plan")
+            else:
+                st.info("⏳ Implementation planning pending...")
+    
+    # Show detailed results in separate expanders (not nested)
+    if 'schema_analysis' in outputs:
+        with st.expander("📋 Schema Analysis Details"):
+            st.json(outputs['schema_analysis'])
+    
+    if 'technical_design' in outputs:
+        with st.expander("🔧 Technical Design Details"):
+            st.json(outputs['technical_design'])
+    
+    if 'implementation_plan' in outputs:
+        with st.expander("📊 Implementation Plan Details"):
+            st.json(outputs['implementation_plan'])
+    
+    # Show key results
+    with st.expander("🎯 Implementation Summary", expanded=True):
+        if 'implementation_plan' in outputs:
+            plan = outputs['implementation_plan']
+            
+            # Extract key metrics if available
+            if isinstance(plan, dict):
+                project_overview = plan.get('project_overview', {})
+                
+                if project_overview:
+                    col1, col2, col3 = st.columns(3)
+                    
+                    with col1:
+                        effort = project_overview.get('total_estimated_effort', 'Not specified')
+                        st.metric("Total Effort", effort)
+                    
+                    with col2:
+                        timeline = project_overview.get('critical_path_duration', 'Not specified')
+                        st.metric("Timeline", timeline)
+                    
+                    with col3:
+                        team_size = project_overview.get('team_size_recommendation', 'Not specified')
+                        st.metric("Team Size", team_size)
+                
+                # Show tasks summary
+                tasks = plan.get('implementation_tasks', [])
+                if tasks:
+                    st.markdown(f"**📋 {len(tasks)} implementation tasks created**")
+                    
+                    # Show first few tasks as preview
+                    preview_tasks = tasks[:3] if len(tasks) > 3 else tasks
+                    for i, task in enumerate(preview_tasks, 1):
+                        if isinstance(task, dict):
+                            title = task.get('title', f'Task {i}')
+                            effort = task.get('estimated_effort', 'TBD')
+                            st.write(f"{i}. **{title}** - {effort}")
+                    
+                    if len(tasks) > 3:
+                        st.write(f"... and {len(tasks) - 3} more tasks")
+        else:
+            st.info("Implementation plan is being generated...")
+    
+    # Download buttons for outputs
+    if outputs:
+        st.markdown("### 📥 Download Results")
+        
+        cols = st.columns(len(outputs))
+        
+        for i, (output_name, output_data) in enumerate(outputs.items()):
+            with cols[i]:
+                file_name = f"{output_name.replace('_', '-')}.json"
+                
+                if isinstance(output_data, dict):
+                    data_str = json.dumps(output_data, indent=2)
+                else:
+                    data_str = str(output_data)
+                
+                st.download_button(
+                    f"📄 {output_name.replace('_', ' ').title()}",
+                    data=data_str,
+                    file_name=file_name,
+                    mime="application/json",
+                    key=f"download_{output_name}_btn"
+                )
 
 def show_configuration_popup():
     """Show configuration popup to collect API keys and Salesforce credentials."""
@@ -1400,6 +1795,155 @@ def validate_salesforce_config(instance_url, client_id, client_secret, domain,
         st.error(f"❌ Salesforce validation failed: {str(e)}")
         return False
 
+def make_json_serializable(obj):
+    """
+    Convert CrewOutput and other non-serializable objects to JSON-serializable format.
+    """
+    # Handle CrewOutput specifically
+    if CrewOutput and isinstance(obj, CrewOutput):
+        return {
+            'type': 'CrewOutput',
+            'raw': str(obj.raw) if hasattr(obj, 'raw') and obj.raw else None,
+            'pydantic': str(obj.pydantic) if hasattr(obj, 'pydantic') and obj.pydantic else None,
+            'json_dict': getattr(obj, 'json_dict', None),
+            'tasks_output': [make_json_serializable(task) for task in getattr(obj, 'tasks_output', [])]
+        }
+    elif hasattr(obj, '__dict__'):
+        # Handle other objects with attributes
+        if hasattr(obj, 'raw') and hasattr(obj, 'pydantic'):
+            # This is likely a CrewOutput-like object
+            return {
+                'type': 'CrewOutput',
+                'raw': str(obj.raw) if obj.raw else None,
+                'pydantic': str(obj.pydantic) if obj.pydantic else None,
+                'json_dict': getattr(obj, 'json_dict', None),
+                'tasks_output': [make_json_serializable(task) for task in getattr(obj, 'tasks_output', [])]
+            }
+        else:
+            # Generic object with __dict__
+            return {key: make_json_serializable(value) for key, value in obj.__dict__.items()}
+    elif isinstance(obj, dict):
+        return {key: make_json_serializable(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [make_json_serializable(item) for item in obj]
+    elif isinstance(obj, (str, int, float, bool, type(None))):
+        return obj
+    else:
+        # Fallback: convert to string
+        return str(obj)
+
+def safe_json_serialize(data):
+    """
+    Safely serialize data to JSON, handling CrewOutput and other non-serializable objects.
+    """
+    try:
+        # First try normal JSON serialization
+        return json.dumps(data, indent=2)
+    except TypeError:
+        # If that fails, convert to serializable format first
+        serializable_data = make_json_serializable(data)
+        return json.dumps(serializable_data, indent=2)
+
+def display_real_time_agent_activity():
+    """Display real-time agent activity in an expandable section within chat."""
+    
+    # Only show if agents are processing
+    if not st.session_state.processing:
+        return
+    
+    # Create expandable section for agent activity
+    with st.expander("🔍 **Live Agent Activity** (Click to see what's happening behind the scenes)", expanded=False):
+        
+        # Show current active agent
+        if 'current_active_agent' in st.session_state and st.session_state.current_active_agent:
+            agent = st.session_state.current_active_agent
+            start_time = st.session_state.get('agent_start_time', time.time())
+            elapsed = time.time() - start_time
+            
+            # Get agent details
+            agent_details = {
+                'schema': {'name': '🗄️ Schema Expert', 'color': '#0176D3', 'description': 'Analyzing Salesforce schema and designing data model'},
+                'technical': {'name': '🏗️ Technical Architect', 'color': '#28a745', 'description': 'Creating technical architecture and automation flows'},
+                'dependency': {'name': '📋 Dependency Resolver', 'color': '#ffc107', 'description': 'Generating implementation plan and task dependencies'},
+                'master': {'name': '🤖 Master Agent', 'color': '#6f42c1', 'description': 'Orchestrating the overall analysis process'}
+            }
+            
+            current_agent = agent_details.get(agent, {'name': f'🤖 {agent.title()} Agent', 'color': '#6c757d', 'description': 'Processing your request'})
+            
+            # Display current agent status
+            st.markdown(f"""
+            <div style="background: linear-gradient(135deg, {current_agent['color']} 0%, {current_agent['color']}dd 100%); 
+                        color: white; padding: 1rem; border-radius: 8px; margin: 1rem 0;">
+                <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                    <span style="font-size: 1.5rem;">{current_agent['name'].split(' ')[0]}</span>
+                    <div>
+                        <div style="font-weight: bold; font-size: 1.1rem;">{current_agent['name']}</div>
+                        <div style="font-size: 0.9rem; opacity: 0.9;">{current_agent['description']}</div>
+                    </div>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div style="font-size: 0.9rem;">
+                        ⏱️ Working for <strong>{elapsed:.1f}s</strong>
+                    </div>
+                    <div style="font-size: 0.8rem; opacity: 0.8;">
+                        🔄 Processing...
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Progress bar
+            progress = min(elapsed / 60, 1.0)  # 60s max
+            st.progress(progress, text=f"Progress: {progress*100:.1f}%")
+            
+            # Show memory operations if available
+            if 'agent_activities' in st.session_state:
+                st.markdown("**📊 Recent Activities:**")
+                for activity in st.session_state.agent_activities[-3:]:  # Show last 3 activities
+                    if activity.get('status') == 'completed':
+                        duration = activity.get('duration', 0)
+                        st.markdown(f"✅ **{activity['agent']}** completed in {duration:.1f}s")
+                    elif activity.get('status') == 'active':
+                        st.markdown(f"🔄 **{activity['agent']}** is working...")
+        
+        # Show agent queue (what's coming next)
+        st.markdown("**📋 Agent Queue:**")
+        
+        # Define the agent sequence
+        agent_sequence = [
+            {'name': '🗄️ Schema Expert', 'status': 'completed' if agent == 'schema' else 'pending' if agent in ['technical', 'dependency'] else 'waiting'},
+            {'name': '🏗️ Technical Architect', 'status': 'completed' if agent == 'technical' else 'active' if agent == 'technical' else 'pending' if agent == 'dependency' else 'waiting'},
+            {'name': '📋 Dependency Resolver', 'status': 'completed' if agent == 'dependency' else 'active' if agent == 'dependency' else 'waiting'}
+        ]
+        
+        for i, agent_info in enumerate(agent_sequence):
+            status_icon = {
+                'completed': '✅',
+                'active': '🔄',
+                'pending': '⏳',
+                'waiting': '⏸️'
+            }.get(agent_info['status'], '⏸️')
+            
+            status_color = {
+                'completed': '#28a745',
+                'active': '#0176D3',
+                'pending': '#ffc107',
+                'waiting': '#6c757d'
+            }.get(agent_info['status'], '#6c757d')
+            
+            st.markdown(f"""
+            <div style="display: flex; align-items: center; padding: 0.5rem; margin: 0.2rem 0; 
+                        border-left: 3px solid {status_color}; background: rgba(0,0,0,0.02); border-radius: 4px;">
+                <span style="margin-right: 0.5rem; font-size: 1.2rem;">{status_icon}</span>
+                <span style="color: {status_color}; font-weight: 500;">{agent_info['name']}</span>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        # Auto-refresh while processing
+        if st.session_state.processing:
+            time.sleep(1)
+            st.rerun()
+
 def main():
     """Main application function."""
     initialize_session_state()
@@ -1510,6 +2054,9 @@ def main():
     
     # Expert suggestions panel (when available)
     display_expert_suggestions_panel()
+
+    # Display real-time agent activity in the chat interface
+    display_real_time_agent_activity()
     
     # Fixed footer with input
     create_chat_input_footer()
@@ -1599,7 +2146,7 @@ def create_chat_input_footer():
             )
         
         if submit_button and user_input:
-            process_user_input(user_input)
+            process_user_input(user_input, use_crewai=st.session_state.use_crewai)
             st.rerun()
 
 if __name__ == "__main__":

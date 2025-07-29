@@ -1,0 +1,39 @@
+{
+  "objects_to_create": [
+    {
+      "api_name": "Life_Event__c",
+      "label": "Life Event",
+      "key_fields": [
+        "Event_Name__c",
+        "Event_Date__c",
+        "Contact__c"
+      ],
+      "sharing_model": "Private"
+    }
+  ],
+  "automation_needed": [
+    {
+      "type": "Flow",
+      "name": "Send_Email_Notification",
+      "purpose": "Sends an email notification to the associated Contact when a new Life Event record is created.",
+      "trigger": "After insert"
+    }
+  ],
+  "security_settings": [
+    {
+      "component": "Profile",
+      "permissions": [
+        "View All on Life_Event__c",
+        "Create on Life_Event__c",
+        "Edit on Life_Event__c",
+        "Delete on Life_Event__c"
+      ]
+    }
+  ],
+  "ui_components": [
+    {
+      "type": "Page Layout",
+      "description": "Custom page layout for Life Event to include Event Name, Event Date, and related Contact fields."
+    }
+  ]
+}

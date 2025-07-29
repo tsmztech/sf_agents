@@ -1,6 +1,6 @@
 # EMERGENCY MINIMAL requirements for Streamlit Cloud deployment
 # Use this if main requirements.txt fails due to Python 3.13 compatibility
-
+ 
 streamlit==1.28.0
 python-dotenv==1.0.0
 requests==2.31.0

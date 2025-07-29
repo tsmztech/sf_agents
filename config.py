@@ -55,7 +55,7 @@ class Config:
         if not cls.OPENAI_API_KEY:
             print("Warning: OPENAI_API_KEY not found. Please set it in your .env file.")
             return False
-        return True
+        return True 
     
     @classmethod
     def validate_salesforce_config(cls) -> bool:

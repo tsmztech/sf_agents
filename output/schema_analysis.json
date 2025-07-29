@@ -1,0 +1,41 @@
+{
+  "business_entities": ["Contact", "Life Event"],
+  "recommended_objects": [
+    {
+      "name": "Life Event",
+      "api_name": "Life_Event__c",
+      "purpose": "Captures significant life events for Contacts.",
+      "key_fields": [
+        {
+          "name": "Event Name",
+          "api_name": "Event_Name__c",
+          "type": "Text",
+          "required": true
+        },
+        {
+          "name": "Event Date",
+          "api_name": "Event_Date__c",
+          "type": "Date",
+          "required": true
+        },
+        {
+          "name": "Contact",
+          "api_name": "Contact__c",
+          "type": "Lookup",
+          "required": true
+        }
+      ],
+      "relationships": [
+        {
+          "related_object": "Contact",
+          "type": "lookup"
+        }
+      ]
+    }
+  ],
+  "implementation_notes": [
+    "Access to the Life Event object will be restricted to the System Admin profile only.",
+    "An email notification should be triggered when a new Life Event record is created, sent to the associated Contact's email address.",
+    "Ensure the custom object is built to handle potentially high volumes of data since each Contact may have numerous life events."
+  ]
+}

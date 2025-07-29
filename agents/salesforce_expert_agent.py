@@ -502,8 +502,7 @@ class SalesforceSchemaExpertAgent:
         except Exception as e:
             return {
                 'connected': True,
-                'error': str(e),
-                'object_name': object_name
+                'error': str(e)
             }
     
     def _get_org_context(self, mentioned_objects: List[str]) -> Dict[str, Any]:

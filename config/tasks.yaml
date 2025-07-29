@@ -1,0 +1,123 @@
+schema_analysis_task:
+  description: >
+    Analyze the business requirement: {requirement}
+    
+    Your task:
+    1. Extract key business entities and data relationships
+    2. Use the Salesforce Analysis Tool ONCE to get org schema overview
+    3. Recommend 1-3 main objects with essential fields only
+    4. Focus on MVP approach - minimal viable implementation
+    
+    Keep analysis concise and focused on core requirements only.
+  expected_output: >
+    A focused JSON schema analysis:
+    {
+      "business_entities": ["list of 2-3 key entities"],
+      "recommended_objects": [
+        {
+          "name": "Object Label",
+          "api_name": "Object_API_Name__c",
+          "purpose": "Brief purpose",
+          "key_fields": [
+            {
+              "name": "Field Label",
+              "api_name": "Field_API_Name__c",
+              "type": "Text|Number|Date|Lookup",
+              "required": true|false
+            }
+          ],
+          "relationships": [
+            {
+              "related_object": "Contact|Account|Custom__c",
+              "type": "lookup|master_detail"
+            }
+          ]
+        }
+      ],
+      "implementation_notes": ["2-3 key considerations"]
+    }
+  agent: schema_expert
+
+technical_design_task:
+  description: >
+    Create a focused technical design based on the schema analysis.
+    
+    Your design should cover:
+    1. Object and field creation steps
+    2. Essential automation (1-2 key flows/triggers)
+    3. Basic security settings
+    4. Simple UI requirements
+    
+    Focus on MVP implementation - what's needed to meet the core requirement.
+  expected_output: >
+    A concise technical design in JSON:
+    {
+      "objects_to_create": [
+        {
+          "api_name": "Object__c",
+          "label": "Object Label",
+          "key_fields": ["essential fields only"],
+          "sharing_model": "Private|Public Read Only"
+        }
+      ],
+      "automation_needed": [
+        {
+          "type": "Flow|Trigger",
+          "name": "Component_Name",
+          "purpose": "Brief description",
+          "trigger": "when does it run"
+        }
+      ],
+      "security_settings": [
+        {
+          "component": "Profile|Permission Set",
+          "permissions": ["key permissions"]
+        }
+      ],
+      "ui_components": [
+        {
+          "type": "Page Layout|Tab",
+          "description": "Brief requirement"
+        }
+      ]
+    }
+  agent: technical_architect
+  context: [schema_analysis_task]
+
+task_creation_task:
+  description: >
+    Create a practical implementation plan with 5-10 focused tasks.
+    
+    Break down the technical design into:
+    1. Object/field creation (1-2 tasks)
+    2. Automation setup (1-2 tasks) 
+    3. Security configuration (1 task)
+    4. UI setup (1 task)
+    5. Testing and validation (1 task)
+    
+    Keep tasks simple and executable. Each task should take 2-8 hours.
+  expected_output: >
+    A focused implementation plan:
+    {
+      "project_summary": {
+        "total_effort": "X days",
+        "team_size": "1-2 people",
+        "duration": "X weeks"
+      },
+      "tasks": [
+        {
+          "id": "T001",
+          "title": "Clear task title",
+          "description": "What needs to be done",
+          "effort": "X hours",
+          "dependencies": ["previous task IDs"],
+          "role": "Admin|Developer",
+          "acceptance_criteria": ["how to verify completion"]
+        }
+      ],
+      "implementation_order": ["T001", "T002", "T003"],
+      "key_risks": ["2-3 main risks to watch"],
+      "success_criteria": ["how to measure success"]
+    }
+  agent: dependency_resolver
+  context: [technical_design_task] 
