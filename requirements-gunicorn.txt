@@ -1,10 +1,7 @@
-# MINIMAL FastAPI requirements - UI and configuration only
-# Deploy this first, then add CrewAI later
-
+# FastAPI with Gunicorn for Render deployment
 fastapi==0.115.5
+gunicorn==21.2.0
 uvicorn==0.31.1
-uvloop==0.21.0
-httptools==0.6.4
 websockets==12.0
 python-multipart==0.0.12
 python-dotenv==1.0.1
@@ -12,4 +9,4 @@ pydantic>=2.0.0
 requests==2.32.3
 simple-salesforce==1.12.6
 openai==1.44.1
-typing-extensions>=4.0.0 
+typing-extensions>=4.0.0
