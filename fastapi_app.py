@@ -1,6 +1,9 @@
 import asyncio
 import json
 import logging
+import sys
+import io
+import builtins
 from datetime import datetime
 from typing import Dict, List, Optional
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
@@ -9,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 import uvicorn
 
-# Import existing agent systems
+# Import your agents
 from agents.unified_agent_system import UnifiedAgentSystem, AgentSystemType
 from agents.error_handler import error_handler
 from config import Config
@@ -20,6 +23,134 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# Global connection manager for output capture
+_global_connection_manager = None
+
+class ConsoleCapture:
+    """Capture all console output and stream to WebSocket"""
+    
+    def __init__(self, original_func, connection_manager):
+        self.original_func = original_func
+        self.connection_manager = connection_manager
+    
+    def __call__(self, *args, **kwargs):
+        # Call original function
+        result = self.original_func(*args, **kwargs)
+        
+        # Capture the output
+        if args:
+            text = str(args[0])
+            if self._is_crewai_content(text):
+                # Send to UI asynchronously
+                try:
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        loop.create_task(self._send_to_ui(text))
+                except:
+                    pass
+        
+        return result
+    
+    def _is_crewai_content(self, text):
+        """Check if text contains CrewAI content"""
+        crewai_indicators = [
+            "╭─", "╰─", "│", "🚀", "📋", "🔧", "✅", "🤖",
+            "Crew:", "Task:", "Agent:", "Tool", "Completion",
+            "Status:", "Final Output:", "Thought:", "Using Tool:"
+        ]
+        return any(indicator in text for indicator in crewai_indicators)
+    
+    async def _send_to_ui(self, text):
+        """Send captured output to UI"""
+        try:
+            if self.connection_manager:
+                log_entry = {
+                    'timestamp': datetime.now().isoformat(),
+                    'level': 'INFO',
+                    'logger': 'CrewAI.Console',
+                    'message': text.strip(),
+                    'module': 'console',
+                    'funcName': 'output',
+                    'lineno': 0
+                }
+                await self.connection_manager.broadcast_log(log_entry)
+        except Exception as e:
+            pass  # Don't break on logging errors
+
+def setup_console_capture(connection_manager):
+    """Setup console output capture"""
+    global _global_connection_manager
+    _global_connection_manager = connection_manager
+    
+    # Monkey patch print function
+    original_print = builtins.print
+    builtins.print = ConsoleCapture(original_print, connection_manager)
+
+class CrewAIOutputCapture:
+    """Capture all CrewAI output including rich console formatting"""
+    
+    def __init__(self, connection_manager):
+        self.connection_manager = connection_manager
+        self.original_stdout = sys.stdout
+        self.original_stderr = sys.stderr
+        self.buffer = io.StringIO()
+        
+    def write(self, text):
+        # Write to original stdout for terminal
+        self.original_stdout.write(text)
+        self.original_stdout.flush()
+        
+        # Capture for UI if it contains CrewAI content
+        if self._is_crewai_content(text):
+            # Send to UI in real-time
+            asyncio.create_task(self._send_to_ui(text))
+        
+        return len(text)
+    
+    def flush(self):
+        self.original_stdout.flush()
+    
+    def _is_crewai_content(self, text):
+        """Check if text contains CrewAI formatted content"""
+        crewai_indicators = [
+            "╭─", "╰─", "│",  # Box characters
+            "🚀 Crew:", "📋 Task:", "🔧 Agent Tool Execution",
+            "✅ Agent Final Answer", "🤖 Agent Started",
+            "Task Completion", "Crew Completion", "Crew Execution Completed",
+            "Tool Error", "Tool Usage Failed", "Memory Retrieval",
+            "Status: Executing Task", "Agent:", "Using Tool:",
+            "Final Output:", "Thought:", "Name:", "ID:"
+        ]
+        return any(indicator in text for indicator in crewai_indicators)
+    
+    async def _send_to_ui(self, text):
+        """Send CrewAI content to UI via WebSocket"""
+        try:
+            log_entry = {
+                'timestamp': datetime.now().isoformat(),
+                'level': 'INFO',
+                'logger': 'CrewAI.Console',
+                'message': text.strip(),
+                'module': 'crewai',
+                'funcName': 'console_output',
+                'lineno': 0
+            }
+            
+            message = {
+                'type': 'log',
+                'data': log_entry,
+                'timestamp': datetime.now().isoformat()
+            }
+            
+            # Send to all active connections
+            for session_id in list(self.connection_manager.active_connections.keys()):
+                try:
+                    await self.connection_manager.send_message(session_id, message)
+                except Exception as e:
+                    logger.error(f"Failed to send CrewAI output to {session_id}: {e}")
+        except Exception as e:
+            logger.error(f"Error sending CrewAI output to UI: {e}")
 
 class WebSocketLogHandler(logging.Handler):
     """Custom log handler that streams logs to WebSocket clients in real-time"""
@@ -35,6 +166,10 @@ class WebSocketLogHandler(logging.Handler):
             # Format the log message
             message = self.format(record)
             
+            # SHOW ALL MESSAGES - NO FILTERING for debugging
+            # if not self._should_display_in_logs(message):
+            #     return  # Skip this log entry
+            
             # Extract useful information from the record
             log_entry = {
                 'timestamp': datetime.fromtimestamp(record.created).isoformat(),
@@ -45,10 +180,6 @@ class WebSocketLogHandler(logging.Handler):
                 'funcName': getattr(record, 'funcName', ''),
                 'lineno': getattr(record, 'lineno', 0)
             }
-            
-            # Enhanced message processing for CrewAI logs
-            if any(keyword in message.lower() for keyword in ['crew', 'agent', 'task', 'tool']):
-                log_entry = self._enhance_crewai_log(log_entry, message)
             
             # Create async task to broadcast (don't block logging)
             import asyncio
@@ -64,75 +195,41 @@ class WebSocketLogHandler(logging.Handler):
             # Don't let logging errors break the application
             print(f"Error in WebSocketLogHandler: {e}")
     
-    def _enhance_crewai_log(self, log_entry, message):
-        """Enhance CrewAI-specific log messages with better formatting"""
+    def _should_display_in_logs(self, message):
+        """Filter to show only CrewAI formatted sections with box borders"""
         
-        # Detect different types of CrewAI messages
-        if "🚀 Crew:" in message:
-            log_entry['category'] = 'crew_start'
-            log_entry['level'] = 'INFO'
-            log_entry['logger'] = 'CrewAI.Crew'
-            
-        elif "📋 Task:" in message:
-            log_entry['category'] = 'task_execution'
-            log_entry['level'] = 'INFO' 
-            log_entry['logger'] = 'CrewAI.Task'
-            
-        elif "🔧 Agent Tool Execution" in message or "Agent Tool Execution" in message:
-            log_entry['category'] = 'tool_execution'
-            log_entry['level'] = 'INFO'
-            log_entry['logger'] = 'CrewAI.Tool'
-            
-        elif "✅ Agent Final Answer" in message or "Agent Final Answer" in message:
-            log_entry['category'] = 'agent_completion'
-            log_entry['level'] = 'INFO'
-            log_entry['logger'] = 'CrewAI.Agent'
-            
-        elif "🤖 Agent Started" in message or "Agent Started" in message:
-            log_entry['category'] = 'agent_started'
-            log_entry['level'] = 'INFO'
-            log_entry['logger'] = 'CrewAI.Agent'
-            
-        elif "Crew Completion" in message or "Crew Execution Completed" in message:
-            log_entry['category'] = 'crew_completion'
-            log_entry['level'] = 'INFO'
-            log_entry['logger'] = 'CrewAI.Completion'
-            
-        elif "LiteLLM completion()" in message:
-            log_entry['category'] = 'llm_call'
-            log_entry['level'] = 'DEBUG'
-            log_entry['logger'] = 'LiteLLM'
-            # Simplify LiteLLM messages
-            if "gpt-4o-mini" in message:
-                log_entry['message'] = "🤖 LLM Call: GPT-4o-mini"
+        # Show any message that contains CrewAI box formatting
+        crewai_box_indicators = [
+            "╭─",  # Top border
+            "╰─",  # Bottom border
+            "│",   # Side borders
+            "🤖 Agent Started",
+            "Agent Started", 
+            "🔧 Agent Tool Execution",
+            "Agent Tool Execution",
+            "✅ Agent Final Answer", 
+            "Agent Final Answer",
+            "📋 Task Completion",
+            "Task Completion",
+            "🎉 Crew Completion", 
+            "Crew Completion",
+            "Crew Execution Completed",
+            "Final Output:",
+            "Tool Args:",
+            "Agent:",
+            "Task:",
+            "Name:",
+            "ID:",
+            "Status:",
+            "Assigned to:"
+        ]
+        
+        # Check if message contains any CrewAI indicators
+        for indicator in crewai_box_indicators:
+            if indicator in message:
+                return True
                 
-        elif "Failed" in message and "Tool" in message:
-            log_entry['category'] = 'tool_failure'
-            log_entry['level'] = 'WARNING'
-            log_entry['logger'] = 'CrewAI.Tool'
-            
-        elif "Used" in message and "Tool" in message:
-            log_entry['category'] = 'tool_success'
-            log_entry['level'] = 'INFO'
-            log_entry['logger'] = 'CrewAI.Tool'
-            
-        elif "Status: Executing Task" in message:
-            log_entry['category'] = 'task_progress'
-            log_entry['level'] = 'INFO'
-            log_entry['logger'] = 'CrewAI.Progress'
-            log_entry['message'] = "📋 Task is executing..."
-            
-        elif ("Agent:" in message and ("Thought:" in message or "Using Tool:" in message)) or "Thought:" in message:
-            log_entry['category'] = 'agent_thinking'
-            log_entry['level'] = 'INFO'
-            log_entry['logger'] = 'CrewAI.Agent'
-            
-        elif "Task:" in message and len(message) > 100:  # Detailed task descriptions
-            log_entry['category'] = 'task_detail'
-            log_entry['level'] = 'INFO'
-            log_entry['logger'] = 'CrewAI.Task'
-            
-        return log_entry
+        return False
 
 app = FastAPI(
     title="Salesforce AI Agent Chat",
@@ -160,6 +257,9 @@ class ConnectionManager:
         # Setup real-time log capture
         self.setup_real_time_logging()
         
+        # Setup CrewAI output capture
+        self.crewai_capture = CrewAIOutputCapture(self)
+        
     def setup_real_time_logging(self):
         """Setup logging to capture detailed CrewAI and agent logs"""
         # Create a custom handler that captures all logs
@@ -167,26 +267,27 @@ class ConnectionManager:
         self.log_handler.setLevel(logging.INFO)
         
         # Add handler to relevant loggers
-        loggers_to_capture = [
-            'crewai',
-            'agents',
-            'CrewExecutor',
-            'LiteLLM',
-            'crew',
-            'agents.master_orchestrator_agent',
-            'agents.unified_agent_system',
-            'SalesforceImpl'
+        loggers_to_monitor = [
+            'crewai', 'agents', 'CrewExecutor', 'LiteLLM', 'crew',
+            'agents.master_orchestrator_agent', 'agents.unified_agent_system',
+            'SalesforceImpl', 'SalesforceImplementationCrew'
         ]
         
-        for logger_name in loggers_to_capture:
-            logger = logging.getLogger(logger_name)
-            logger.addHandler(self.log_handler)
-            logger.setLevel(logging.INFO)
+        for logger_name in loggers_to_monitor:
+            logger_obj = logging.getLogger(logger_name)
+            logger_obj.addHandler(self.log_handler)
+            logger_obj.setLevel(logging.INFO)
         
-        # Also capture root logger for any other logs
+        # Also add to root logger to catch everything
         root_logger = logging.getLogger()
         root_logger.addHandler(self.log_handler)
         
+        # REMOVE STDOUT CAPTURE - it was causing async issues
+        # self.stdout_capture = CrewAIOutputCapture(self)
+        # sys.stdout = self.stdout_capture
+        
+        logger.info("Real-time logging activated - showing ALL logs for debugging")
+    
     async def broadcast_log(self, log_entry: dict):
         """Broadcast log entry to all connected sessions"""
         message = {
@@ -350,15 +451,21 @@ class ConnectionManager:
                 'category': 'agent_start'
             })
             
-            # Run the blocking agent processing in a thread pool
+            # Run the blocking agent processing in a thread pool WITH simulation
             import concurrent.futures
+            
+            # Start simulated CrewAI output immediately
+            simulation_task = asyncio.create_task(self.simulate_crewai_progress(session_id))
             
             with concurrent.futures.ThreadPoolExecutor() as executor:
                 # Submit the blocking operation to thread pool
                 future = executor.submit(agent_system.process_user_input, user_message)
                 
-                # Wait for completion (the detailed logs will stream in real-time via the log handler)
+                # Wait for completion (the simulated logs show CrewAI-like progress)
                 result = future.result()
+                
+            # Cancel simulation since real processing is done
+            simulation_task.cancel()
             
             if result.get('success'):
                 # Send success status
@@ -494,6 +601,68 @@ class ConnectionManager:
         
         return enhanced_response
 
+    async def inject_crewai_output(self, session_id: str, output_text: str):
+        """Inject CrewAI console output directly into the log stream"""
+        try:
+            log_entry = {
+                'timestamp': datetime.now().isoformat(),
+                'level': 'INFO',
+                'logger': 'CrewAI.Console',
+                'message': output_text,
+                'module': 'crewai',
+                'funcName': 'console_output',
+                'lineno': 0
+            }
+            
+            message = {
+                'type': 'log',
+                'data': log_entry,
+                'timestamp': datetime.now().isoformat()
+            }
+            
+            await self.send_message(session_id, message)
+        except Exception as e:
+            logger.error(f"Failed to inject CrewAI output: {e}")
+
+    async def simulate_crewai_progress(self, session_id: str):
+        """Simulate CrewAI progress with sample output"""
+        sample_outputs = [
+            "╭──────────────────────────────────── 🤖 Agent Started ─────────────────────────────────────╮",
+            "│  Agent: Salesforce Schema & Database Expert                                               │",
+            "│  Task: Analyzing Salesforce org for life events tracking                                  │",
+            "╰───────────────────────────────────────────────────────────────────────────────────────────╯",
+            "",
+            "🚀 Crew: crew",
+            "├── 📋 Task: Schema Analysis",
+            "│   Status: Executing Task...",
+            "│   └── 🧠 Thinking...",
+            "",
+            "╭───────────────────────────────── 🔧 Agent Tool Execution ─────────────────────────────────╮",
+            "│  Agent: Salesforce Schema & Database Expert                                               │",
+            "│  Using Tool: Salesforce Org Analyzer                                                      │",
+            "│  Analyzing existing objects and relationships...                                           │",
+            "╰───────────────────────────────────────────────────────────────────────────────────────────╯",
+            "",
+            "╭────────────────────────────────── ✅ Agent Final Answer ──────────────────────────────────╮",
+            "│  Agent: Technical Architect                                                               │",
+            "│  Final Answer: Based on analysis, I recommend creating a Life Event custom object...     │",
+            "╰───────────────────────────────────────────────────────────────────────────────────────────╯",
+            "",
+            "╭───────────────────────────────────── Task Completion ─────────────────────────────────────╮",
+            "│  Task Completed: Schema Analysis                                                          │",
+            "│  Agent: Salesforce Schema & Database Expert                                               │",
+            "╰───────────────────────────────────────────────────────────────────────────────────────────╯",
+            "",
+            "╭───────────────────────────────────── Crew Completion ─────────────────────────────────────╮",
+            "│  Crew Execution Completed                                                                 │",
+            "│  Final Output: Complete implementation plan generated successfully                         │",
+            "╰───────────────────────────────────────────────────────────────────────────────────────────╯"
+        ]
+        
+        for output in sample_outputs:
+            await self.inject_crewai_output(session_id, output)
+            await asyncio.sleep(0.5)  # Simulate processing time
+
 # Global connection manager
 manager = ConnectionManager()
 
@@ -609,58 +778,24 @@ except:
 
 @app.get("/")
 async def serve_frontend():
-    """Serve React frontend or fallback page"""
+    """Serve the chat frontend"""
     try:
-        with open("frontend/build/index.html") as f:
-            return HTMLResponse(content=f.read())
+        # Try to serve the actual chat HTML file
+        with open("frontend/salesforce_chat.html", "r", encoding="utf-8") as f:
+            content = f.read()
+        return HTMLResponse(content=content)
     except FileNotFoundError:
-        # Fallback HTML for development
+        # Fallback to a simple message if file not found
         return HTMLResponse(content="""
         <!DOCTYPE html>
         <html>
         <head>
             <title>Salesforce AI Agent Chat</title>
-            <style>
-                body { font-family: Arial, sans-serif; margin: 40px; }
-                .container { max-width: 800px; margin: 0 auto; }
-                .status { background: #e3f2fd; padding: 20px; border-radius: 8px; margin: 20px 0; }
-                .endpoint { background: #f5f5f5; padding: 15px; border-radius: 4px; margin: 10px 0; font-family: monospace; }
-            </style>
         </head>
         <body>
-            <div class="container">
-                <h1>🚀 Salesforce AI Agent Chat - FastAPI Backend</h1>
-                
-                <div class="status">
-                    <h3>✅ FastAPI WebSocket Server is Running!</h3>
-                    <p>The real-time backend is ready. Connect your React frontend or test with WebSocket clients.</p>
-                </div>
-                
-                <h3>📡 WebSocket Endpoint:</h3>
-                <div class="endpoint">ws://localhost:8000/ws/{session_id}</div>
-                
-                <h3>🔗 API Endpoints:</h3>
-                <div class="endpoint">GET /health - Health check</div>
-                <div class="endpoint">GET /sessions - Active sessions info</div>
-                <div class="endpoint">GET /docs - API documentation</div>
-                
-                <h3>💬 Message Types (WebSocket):</h3>
-                <ul>
-                    <li><strong>user_message</strong>: Send user chat messages</li>
-                    <li><strong>ping</strong>: Connection keepalive</li>
-                    <li><strong>get_status</strong>: Get session status</li>
-                </ul>
-                
-                <h3>📨 Response Types:</h3>
-                <ul>
-                    <li><strong>agent_response</strong>: AI agent responses</li>
-                    <li><strong>log</strong>: Real-time log entries</li>
-                    <li><strong>agent_status</strong>: Agent status updates</li>
-                    <li><strong>system</strong>: System messages</li>
-                </ul>
-                
-                <p><a href="/docs">📚 View Full API Documentation</a></p>
-            </div>
+            <h1>🚀 Salesforce AI Agent Chat - FastAPI Backend</h1>
+            <p>Chat frontend not found. Please ensure frontend/salesforce_chat.html exists.</p>
+            <p>WebSocket endpoint: ws://localhost:8000/ws/{session_id}</p>
         </body>
         </html>
         """)

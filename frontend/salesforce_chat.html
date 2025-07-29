@@ -530,49 +530,6 @@
             background: rgba(128, 90, 213, 0.1);
         }
         
-        /* Category-specific styling */
-        .log-entry.crew_start {
-            border-left-color: #38a169;
-            background: rgba(56, 161, 105, 0.15);
-        }
-        
-        .log-entry.task_execution {
-            border-left-color: #3182ce;
-            background: rgba(49, 130, 206, 0.15);
-        }
-        
-        .log-entry.tool_execution {
-            border-left-color: #d69e2e;
-            background: rgba(214, 158, 46, 0.15);
-        }
-        
-        .log-entry.agent_completion {
-            border-left-color: #38a169;
-            background: rgba(56, 161, 105, 0.15);
-        }
-        
-        .log-entry.crew_completion {
-            border-left-color: #38a169;
-            background: rgba(56, 161, 105, 0.2);
-            font-weight: bold;
-        }
-        
-        .log-entry.tool_failure {
-            border-left-color: #e53e3e;
-            background: rgba(229, 62, 62, 0.2);
-        }
-        
-        .log-entry.tool_success {
-            border-left-color: #38a169;
-            background: rgba(56, 161, 105, 0.15);
-        }
-        
-        .log-entry.llm_call {
-            border-left-color: #805ad5;
-            background: rgba(128, 90, 213, 0.1);
-            opacity: 0.8;
-        }
-        
         .log-timestamp {
             color: #a0aec0;
             font-weight: bold;
@@ -601,6 +558,11 @@
         .log-message {
             color: #e2e8f0;
             margin-top: 2px;
+            white-space: pre-wrap; /* Preserve formatting for raw CrewAI logs */
+            word-wrap: break-word;
+            font-family: 'Courier New', monospace; /* Better for box characters */
+            font-size: 12px;
+            line-height: 1.2;
         }
         
         /* Animations */
@@ -956,75 +918,26 @@
             const logsContent = document.getElementById('logsContent');
             const logDiv = document.createElement('div');
             
-            // Apply both level and category classes
-            const levelClass = logData.level || 'INFO';
-            const categoryClass = logData.category || '';
-            logDiv.className = `log-entry ${levelClass} ${categoryClass}`;
+            // Simple styling - no category classes, just raw display
+            logDiv.className = `log-entry ${logData.level || 'INFO'}`;
             
             const time = new Date(logData.timestamp || Date.now()).toLocaleTimeString();
             
-            // Enhanced formatting for different log types
-            let formattedMessage = logData.message;
-            let loggerDisplay = logData.logger || 'System';
-            
-            // Simplify logger names for better readability
-            if (loggerDisplay.startsWith('agents.')) {
-                loggerDisplay = loggerDisplay.replace('agents.', '');
-            }
-            
-            // Format specific CrewAI messages
-            if (logData.category) {
-                switch(logData.category) {
-                    case 'crew_start':
-                        loggerDisplay = '🚀 CrewAI';
-                        break;
-                    case 'task_execution':
-                        loggerDisplay = '📋 Task';
-                        break;
-                    case 'tool_execution':
-                        loggerDisplay = '🔧 Tool';
-                        break;
-                    case 'agent_completion':
-                        loggerDisplay = '✅ Agent';
-                        break;
-                    case 'crew_completion':
-                        loggerDisplay = '🎉 Crew';
-                        break;
-                    case 'tool_failure':
-                        loggerDisplay = '❌ Tool';
-                        break;
-                    case 'tool_success':
-                        loggerDisplay = '✅ Tool';
-                        break;
-                    case 'llm_call':
-                        loggerDisplay = '🤖 LLM';
-                        break;
-                    case 'agent_thinking':
-                        loggerDisplay = '💭 Agent';
-                        break;
-                    case 'task_progress':
-                        loggerDisplay = '⏳ Progress';
-                        break;
-                }
-            }
-            
-            // Truncate very long messages
-            if (formattedMessage.length > 200) {
-                formattedMessage = formattedMessage.substring(0, 197) + '...';
-            }
+            // Display raw message exactly as it comes from CrewAI - no transformation
+            const rawMessage = logData.message || '';
             
             logDiv.innerHTML = `
                 <div class="log-timestamp">[${time}]</div>
-                <div class="log-level ${levelClass}">${levelClass}</div>
-                <div class="log-logger">${loggerDisplay}</div>
-                <div class="log-message">${formattedMessage}</div>
+                <div class="log-level ${logData.level || 'INFO'}">${logData.level || 'INFO'}</div>
+                <div class="log-logger">${logData.logger || 'System'}</div>
+                <div class="log-message">${rawMessage}</div>
             `;
             
             logsContent.appendChild(logDiv);
             logsContent.scrollTop = logsContent.scrollHeight;
             
-            // Keep only last 150 log entries (increased for better visibility)
-            while (logsContent.children.length > 150) {
+            // Keep only last 50 log entries for agent activities
+            while (logsContent.children.length > 50) {
                 logsContent.removeChild(logsContent.firstChild);
             }
         }
@@ -1073,11 +986,6 @@
                             
                         case 'log':
                             addLogEntry(data.data);
-                            
-                            // Check if this log should create an agent activity
-                            if (shouldCreateActivity(data.data)) {
-                                addAgentActivity(data.data);
-                            }
                             break;
                             
                         case 'agent_status':
