@@ -1,4 +1,4 @@
-# Minimal requirements for Render deployment
+# FastAPI Core Requirements
 fastapi==0.115.5
 uvicorn[standard]==0.31.1
 websockets==12.0
@@ -8,19 +8,14 @@ pydantic>=2.0.0
 requests==2.32.3
 simple-salesforce==1.12.6
 openai==1.44.1
-
-# CrewAI - using older versions compatible with Python 3.9
-crewai==0.11.0
-crewai-tools==0.1.6
-
-# LangChain
-langchain-openai==0.1.23
-langchain-community==0.2.16
-
-# Other dependencies
 typing-extensions>=4.0.0
+
+# CrewAI with compatible versions
+crewai==0.11.0
+langchain-openai>=0.0.2,<0.0.3
+langchain-community==0.0.38
+langchain-core==0.1.52
+
+# Basic utilities
 pyyaml>=6.0
-numpy==1.26.4
-pandas==2.2.2
 chardet==5.2.0
-setuptools==69.5.1

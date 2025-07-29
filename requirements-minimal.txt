@@ -1,8 +1,13 @@
-# EMERGENCY MINIMAL requirements for Streamlit Cloud deployment
-# Use this if main requirements.txt fails due to Python 3.13 compatibility
- 
-streamlit==1.28.0
-python-dotenv==1.0.0
-requests==2.31.0
-simple-salesforce==1.12.0
-openai==0.28.1 
+# MINIMAL FastAPI requirements - UI and configuration only
+# Deploy this first, then add CrewAI later
+
+fastapi==0.115.5
+uvicorn[standard]==0.31.1
+websockets==12.0
+python-multipart==0.0.12
+python-dotenv==1.0.1
+pydantic>=2.0.0
+requests==2.32.3
+simple-salesforce==1.12.6
+openai==1.44.1
+typing-extensions>=4.0.0 
