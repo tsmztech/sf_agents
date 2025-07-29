@@ -24,4 +24,4 @@ python-multipart==0.0.12
 aiofiles==24.1.0
 uvloop==0.21.0
 httptools==0.6.4
-python-cors==1.7.0 
+# python-cors==1.7.0  # This package doesn't exist - CORS is built into FastAPI 
