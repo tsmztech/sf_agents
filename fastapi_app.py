@@ -7,9 +7,11 @@ import builtins
 from datetime import datetime
 from typing import Dict, List, Optional
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from typing import Dict, Any, Optional
 import uvicorn
 
 # Import your agents
@@ -849,6 +851,118 @@ async def serve_frontend():
         </body>
         </html>
         """)
+
+# Configuration Models
+class ConfigurationRequest(BaseModel):
+    openai_api_key: str
+    sf_instance_url: str
+    sf_client_id: str
+    sf_client_secret: str
+    sf_domain: str = "login"
+    use_client_creds: bool = True
+    sf_username: Optional[str] = None
+    sf_password: Optional[str] = None
+    sf_security_token: Optional[str] = None
+
+class ConfigurationResponse(BaseModel):
+    success: bool
+    message: str
+    config_complete: bool
+    use_env_config: bool
+
+# Configuration Endpoints
+@app.get("/api/config/status")
+async def get_config_status():
+    """Get current configuration status"""
+    try:
+        # Check if USE_ENV_CONFIG is enabled
+        use_env_config = Config.USE_ENV_CONFIG
+        
+        if use_env_config:
+            # Use environment variables
+            config_complete = (
+                bool(Config.OPENAI_API_KEY) and
+                bool(Config.SALESFORCE_INSTANCE_URL) and
+                bool(Config.SALESFORCE_CLIENT_ID) and
+                bool(Config.SALESFORCE_CLIENT_SECRET)
+            )
+            
+            return {
+                "use_env_config": True,
+                "config_complete": config_complete,
+                "openai_configured": bool(Config.OPENAI_API_KEY),
+                "salesforce_configured": config_complete,
+                "org_info": {
+                    "instance_url": Config.SALESFORCE_INSTANCE_URL,
+                    "domain": Config.SALESFORCE_DOMAIN
+                } if config_complete else None
+            }
+        else:
+            # Use UI configuration - check session storage or return false
+            return {
+                "use_env_config": False,
+                "config_complete": False,
+                "requires_ui_config": True
+            }
+            
+    except Exception as e:
+        logger.error(f"Error getting config status: {e}")
+        return {
+            "use_env_config": False,
+            "config_complete": False,
+            "error": str(e)
+        }
+
+@app.post("/api/config/validate")
+async def validate_configuration(config: ConfigurationRequest):
+    """Validate configuration provided by UI"""
+    try:
+        # Validate OpenAI API Key
+        if not config.openai_api_key:
+            return ConfigurationResponse(
+                success=False,
+                message="OpenAI API key is required",
+                config_complete=False,
+                use_env_config=False
+            )
+        
+        # Validate Salesforce configuration
+        if config.use_client_creds:
+            if not all([config.sf_instance_url, config.sf_client_id, config.sf_client_secret]):
+                return ConfigurationResponse(
+                    success=False,
+                    message="Instance URL, Client ID, and Client Secret are required for Client Credentials Flow",
+                    config_complete=False,
+                    use_env_config=False
+                )
+        else:
+            if not all([config.sf_instance_url, config.sf_client_id, config.sf_client_secret, 
+                       config.sf_username, config.sf_password, config.sf_security_token]):
+                return ConfigurationResponse(
+                    success=False,
+                    message="All Salesforce credentials are required for Username-Password Flow",
+                    config_complete=False,
+                    use_env_config=False
+                )
+        
+        # TODO: Add actual validation logic here (test connections)
+        # For now, just return success if all required fields are provided
+        
+        return ConfigurationResponse(
+            success=True,
+            message="Configuration validated successfully",
+            config_complete=True,
+            use_env_config=False
+        )
+        
+    except Exception as e:
+        logger.error(f"Error validating configuration: {e}")
+        return ConfigurationResponse(
+            success=False,
+            message=f"Validation error: {str(e)}",
+            config_complete=False,
+            use_env_config=False
+        )
 
 if __name__ == "__main__":
     uvicorn.run(

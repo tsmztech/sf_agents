@@ -591,6 +591,164 @@
             border-radius: 3px;
         }
         
+        /* Configuration Modal Styles */
+        .config-modal {
+            display: none;
+            position: fixed;
+            z-index: 10000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.8);
+            backdrop-filter: blur(5px);
+        }
+        
+        .config-modal-content {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 2% auto;
+            padding: 0;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 95vh;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            color: white;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .config-modal-header {
+            padding: 1.5rem 2rem;
+            text-align: center;
+            border-bottom: 1px solid rgba(255,255,255,0.2);
+            flex-shrink: 0;
+        }
+        
+        .config-modal-body {
+            background: white;
+            color: #333;
+            padding: 2rem;
+            border-radius: 0 0 15px 15px;
+            overflow-y: auto;
+            flex: 1;
+            min-height: 0;
+        }
+        
+        .config-form-group {
+            margin-bottom: 1.5rem;
+        }
+        
+        .config-form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .config-form-group input, .config-form-group select {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        
+        .config-form-group input:focus, .config-form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .config-auth-toggle {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .config-auth-option {
+            flex: 1;
+            padding: 1rem;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .config-auth-option.active {
+            border-color: #667eea;
+            background: rgba(102, 126, 234, 0.1);
+        }
+        
+        .config-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: flex-end;
+            margin-top: 2rem;
+        }
+        
+        .config-btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .config-btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .config-btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+        
+        .config-btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        
+        .config-error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 0.75rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .config-success {
+            background: #d4edda;
+            color: #155724;
+            padding: 0.75rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .config-item {
+            padding: 0.5rem 0;
+            font-size: 12px;
+        }
+        
+        .config-item.success {
+            color: #28a745;
+        }
+        
+        .config-item.error {
+            color: #dc3545;
+        }
+        
+        .config-item.info {
+            color: rgba(255,255,255,0.8);
+        }
+        
         .logs-content::-webkit-scrollbar-thumb {
             background: #4a5568;
         }
@@ -728,11 +886,205 @@
         </div>
     </div>
 
+    <!-- Configuration Modal -->
+    <div id="configModal" class="config-modal">
+        <div class="config-modal-content">
+            <div class="config-modal-header">
+                <h2>🔧 Configuration Required</h2>
+                <p>Please configure your API keys and Salesforce credentials to continue</p>
+            </div>
+            <div class="config-modal-body">
+                <div id="configMessage"></div>
+                
+                <form id="configForm">
+                    <!-- OpenAI Configuration -->
+                    <div class="config-form-group">
+                        <label for="openaiKey">🤖 OpenAI API Key *</label>
+                        <input type="password" id="openaiKey" placeholder="sk-..." required>
+                    </div>
+                    
+                    <!-- Salesforce Authentication Method -->
+                    <div class="config-form-group">
+                        <label>🔐 Salesforce Authentication Method</label>
+                        <div class="config-auth-toggle">
+                            <div class="config-auth-option active" data-method="client_creds">
+                                <strong>Client Credentials</strong><br>
+                                <small>Recommended for production</small>
+                            </div>
+                            <div class="config-auth-option" data-method="username_password">
+                                <strong>Username-Password</strong><br>
+                                <small>Legacy method</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Salesforce Configuration -->
+                    <div class="config-form-group">
+                        <label for="sfInstanceUrl">🌐 Salesforce Instance URL *</label>
+                        <input type="url" id="sfInstanceUrl" placeholder="https://yourorg.my.salesforce.com" required>
+                    </div>
+                    
+                    <div class="config-form-group">
+                        <label for="sfClientId">🔑 Client ID *</label>
+                        <input type="text" id="sfClientId" placeholder="Connected App Client ID" required>
+                    </div>
+                    
+                    <div class="config-form-group">
+                        <label for="sfClientSecret">🔒 Client Secret *</label>
+                        <input type="password" id="sfClientSecret" placeholder="Connected App Client Secret" required>
+                    </div>
+                    
+                    <div class="config-form-group">
+                        <label for="sfDomain">🏢 Salesforce Domain</label>
+                        <select id="sfDomain">
+                            <option value="login">Production (login.salesforce.com)</option>
+                            <option value="test">Sandbox (test.salesforce.com)</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Username-Password Fields (hidden by default) -->
+                    <div id="usernamePasswordFields" style="display: none;">
+                        <div class="config-form-group">
+                            <label for="sfUsername">👤 Username</label>
+                            <input type="text" id="sfUsername" placeholder="your.username@company.com">
+                        </div>
+                        
+                        <div class="config-form-group">
+                            <label for="sfPassword">🔐 Password</label>
+                            <input type="password" id="sfPassword" placeholder="Your Salesforce password">
+                        </div>
+                        
+                        <div class="config-form-group">
+                            <label for="sfSecurityToken">🔐 Security Token</label>
+                            <input type="password" id="sfSecurityToken" placeholder="Security token from email">
+                        </div>
+                    </div>
+                    
+                    <div class="config-buttons">
+                        <button type="button" class="config-btn config-btn-secondary" onclick="skipConfiguration()">Skip for Now</button>
+                        <button type="submit" class="config-btn config-btn-primary">Validate & Save</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <script>
         let ws = null;
         let sessionId = 'session_' + Date.now();
         let connected = false;
         let agentActivities = new Map(); // Store agent activities by ID
+        let configurationComplete = false;
+        let useEnvConfig = false;
+
+        // Configuration Management Functions
+        async function checkConfigurationStatus() {
+            try {
+                const response = await fetch('/api/config/status');
+                const status = await response.json();
+                
+                useEnvConfig = status.use_env_config;
+                configurationComplete = status.config_complete;
+                
+                if (useEnvConfig) {
+                    // Environment configuration - update UI
+                    updateConfigurationUI(status);
+                    return status.config_complete;
+                } else {
+                    // UI configuration required
+                    if (!status.config_complete) {
+                        showConfigurationModal();
+                        return false;
+                    }
+                    return true;
+                }
+            } catch (error) {
+                console.error('Error checking configuration:', error);
+                showConfigurationModal();
+                return false;
+            }
+        }
+        
+        function updateConfigurationUI(status) {
+            const configSection = document.querySelector('.config-section');
+            if (configSection) {
+                let configHTML = '<div class="section-title">🔧 Configuration</div>';
+                
+                if (status.openai_configured) {
+                    configHTML += '<div class="config-item success">✅ OpenAI API configured</div>';
+                } else {
+                    configHTML += '<div class="config-item error">❌ OpenAI API not configured</div>';
+                }
+                
+                if (status.salesforce_configured) {
+                    configHTML += '<div class="config-item success">✅ Salesforce configured</div>';
+                    if (status.org_info) {
+                        configHTML += `<div class="config-item info">🏢 ${status.org_info.instance_url}</div>`;
+                    }
+                } else {
+                    configHTML += '<div class="config-item error">❌ Salesforce not configured</div>';
+                }
+                
+                if (useEnvConfig) {
+                    configHTML += '<div class="config-item info">📋 Using environment variables</div>';
+                }
+                
+                configSection.innerHTML = configHTML;
+            }
+        }
+        
+        function showConfigurationModal() {
+            document.getElementById('configModal').style.display = 'block';
+        }
+        
+        function hideConfigurationModal() {
+            document.getElementById('configModal').style.display = 'none';
+        }
+        
+        function skipConfiguration() {
+            hideConfigurationModal();
+            // Show warning in UI
+            showMessage({
+                type: 'warning',
+                message: '⚠️ Configuration skipped. Some features may not work properly.',
+                timestamp: new Date().toISOString()
+            });
+        }
+        
+        async function validateConfiguration(formData) {
+            try {
+                const response = await fetch('/api/config/validate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+                
+                const result = await response.json();
+                return result;
+            } catch (error) {
+                console.error('Error validating configuration:', error);
+                return {
+                    success: false,
+                    message: 'Network error during validation',
+                    config_complete: false,
+                    use_env_config: false
+                };
+            }
+        }
+        
+        function showConfigMessage(message, type = 'info') {
+            const messageDiv = document.getElementById('configMessage');
+            messageDiv.className = type === 'error' ? 'config-error' : 'config-success';
+            messageDiv.textContent = message;
+            messageDiv.style.display = 'block';
+        }
+        
+        function hideConfigMessage() {
+            const messageDiv = document.getElementById('configMessage');
+            messageDiv.style.display = 'none';
+        }
 
         function showAgentActivityPanel() {
             const panel = document.getElementById('agentActivityPanel');
@@ -1135,8 +1487,103 @@
         }, 30000);
 
         // Auto-connect on page load
-        window.addEventListener('load', function() {
-            setTimeout(connect, 500);
+        window.addEventListener('load', async function() {
+            // Check configuration first
+            const configOk = await checkConfigurationStatus();
+            
+            if (configOk) {
+                setTimeout(connect, 500);
+            } else {
+                console.log('Configuration incomplete, connection delayed');
+            }
+        });
+        
+        // Configuration Modal Event Handlers
+        document.addEventListener('DOMContentLoaded', function() {
+            // Authentication method toggle
+            document.querySelectorAll('.config-auth-option').forEach(option => {
+                option.addEventListener('click', function() {
+                    // Remove active class from all options
+                    document.querySelectorAll('.config-auth-option').forEach(opt => {
+                        opt.classList.remove('active');
+                    });
+                    
+                    // Add active class to clicked option
+                    this.classList.add('active');
+                    
+                    // Show/hide username-password fields
+                    const method = this.dataset.method;
+                    const usernamePasswordFields = document.getElementById('usernamePasswordFields');
+                    
+                    if (method === 'username_password') {
+                        usernamePasswordFields.style.display = 'block';
+                        // Make username-password fields required
+                        document.getElementById('sfUsername').required = true;
+                        document.getElementById('sfPassword').required = true;
+                        document.getElementById('sfSecurityToken').required = true;
+                    } else {
+                        usernamePasswordFields.style.display = 'none';
+                        // Remove required attribute from username-password fields
+                        document.getElementById('sfUsername').required = false;
+                        document.getElementById('sfPassword').required = false;
+                        document.getElementById('sfSecurityToken').required = false;
+                    }
+                });
+            });
+            
+            // Configuration form submission
+            document.getElementById('configForm').addEventListener('submit', async function(e) {
+                e.preventDefault();
+                hideConfigMessage();
+                
+                // Get form data
+                const activeAuthMethod = document.querySelector('.config-auth-option.active').dataset.method;
+                const useClientCreds = activeAuthMethod === 'client_creds';
+                
+                const formData = {
+                    openai_api_key: document.getElementById('openaiKey').value,
+                    sf_instance_url: document.getElementById('sfInstanceUrl').value,
+                    sf_client_id: document.getElementById('sfClientId').value,
+                    sf_client_secret: document.getElementById('sfClientSecret').value,
+                    sf_domain: document.getElementById('sfDomain').value,
+                    use_client_creds: useClientCreds
+                };
+                
+                if (!useClientCreds) {
+                    formData.sf_username = document.getElementById('sfUsername').value;
+                    formData.sf_password = document.getElementById('sfPassword').value;
+                    formData.sf_security_token = document.getElementById('sfSecurityToken').value;
+                }
+                
+                // Validate configuration
+                const result = await validateConfiguration(formData);
+                
+                if (result.success) {
+                    showConfigMessage('Configuration validated successfully!', 'success');
+                    configurationComplete = true;
+                    
+                    // Store configuration in session storage for this session
+                    sessionStorage.setItem('sf_config', JSON.stringify(formData));
+                    
+                    setTimeout(() => {
+                        hideConfigurationModal();
+                        // Connect to WebSocket
+                        setTimeout(connect, 500);
+                    }, 1500);
+                } else {
+                    showConfigMessage(result.message, 'error');
+                }
+            });
+            
+            // Close modal when clicking outside
+            document.getElementById('configModal').addEventListener('click', function(e) {
+                if (e.target === this) {
+                    // Don't allow closing if configuration is required
+                    if (!useEnvConfig && !configurationComplete) {
+                        showConfigMessage('Configuration is required to continue', 'error');
+                    }
+                }
+            });
         });
 
         function shouldCreateActivity(logData) {
