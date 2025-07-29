@@ -21,6 +21,119 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+class WebSocketLogHandler(logging.Handler):
+    """Custom log handler that streams logs to WebSocket clients in real-time"""
+    
+    def __init__(self, connection_manager):
+        super().__init__()
+        self.connection_manager = connection_manager
+        self.setLevel(logging.INFO)
+        
+    def emit(self, record):
+        """Emit a log record to WebSocket clients"""
+        try:
+            # Format the log message
+            message = self.format(record)
+            
+            # Extract useful information from the record
+            log_entry = {
+                'timestamp': datetime.fromtimestamp(record.created).isoformat(),
+                'level': record.levelname,
+                'logger': record.name,
+                'message': message,
+                'module': getattr(record, 'module', ''),
+                'funcName': getattr(record, 'funcName', ''),
+                'lineno': getattr(record, 'lineno', 0)
+            }
+            
+            # Enhanced message processing for CrewAI logs
+            if any(keyword in message.lower() for keyword in ['crew', 'agent', 'task', 'tool']):
+                log_entry = self._enhance_crewai_log(log_entry, message)
+            
+            # Create async task to broadcast (don't block logging)
+            import asyncio
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    loop.create_task(self.connection_manager.broadcast_log(log_entry))
+            except RuntimeError:
+                # If no event loop is running, skip the broadcast
+                pass
+                
+        except Exception as e:
+            # Don't let logging errors break the application
+            print(f"Error in WebSocketLogHandler: {e}")
+    
+    def _enhance_crewai_log(self, log_entry, message):
+        """Enhance CrewAI-specific log messages with better formatting"""
+        
+        # Detect different types of CrewAI messages
+        if "🚀 Crew:" in message:
+            log_entry['category'] = 'crew_start'
+            log_entry['level'] = 'INFO'
+            log_entry['logger'] = 'CrewAI.Crew'
+            
+        elif "📋 Task:" in message:
+            log_entry['category'] = 'task_execution'
+            log_entry['level'] = 'INFO' 
+            log_entry['logger'] = 'CrewAI.Task'
+            
+        elif "🔧 Agent Tool Execution" in message or "Agent Tool Execution" in message:
+            log_entry['category'] = 'tool_execution'
+            log_entry['level'] = 'INFO'
+            log_entry['logger'] = 'CrewAI.Tool'
+            
+        elif "✅ Agent Final Answer" in message or "Agent Final Answer" in message:
+            log_entry['category'] = 'agent_completion'
+            log_entry['level'] = 'INFO'
+            log_entry['logger'] = 'CrewAI.Agent'
+            
+        elif "🤖 Agent Started" in message or "Agent Started" in message:
+            log_entry['category'] = 'agent_started'
+            log_entry['level'] = 'INFO'
+            log_entry['logger'] = 'CrewAI.Agent'
+            
+        elif "Crew Completion" in message or "Crew Execution Completed" in message:
+            log_entry['category'] = 'crew_completion'
+            log_entry['level'] = 'INFO'
+            log_entry['logger'] = 'CrewAI.Completion'
+            
+        elif "LiteLLM completion()" in message:
+            log_entry['category'] = 'llm_call'
+            log_entry['level'] = 'DEBUG'
+            log_entry['logger'] = 'LiteLLM'
+            # Simplify LiteLLM messages
+            if "gpt-4o-mini" in message:
+                log_entry['message'] = "🤖 LLM Call: GPT-4o-mini"
+                
+        elif "Failed" in message and "Tool" in message:
+            log_entry['category'] = 'tool_failure'
+            log_entry['level'] = 'WARNING'
+            log_entry['logger'] = 'CrewAI.Tool'
+            
+        elif "Used" in message and "Tool" in message:
+            log_entry['category'] = 'tool_success'
+            log_entry['level'] = 'INFO'
+            log_entry['logger'] = 'CrewAI.Tool'
+            
+        elif "Status: Executing Task" in message:
+            log_entry['category'] = 'task_progress'
+            log_entry['level'] = 'INFO'
+            log_entry['logger'] = 'CrewAI.Progress'
+            log_entry['message'] = "📋 Task is executing..."
+            
+        elif ("Agent:" in message and ("Thought:" in message or "Using Tool:" in message)) or "Thought:" in message:
+            log_entry['category'] = 'agent_thinking'
+            log_entry['level'] = 'INFO'
+            log_entry['logger'] = 'CrewAI.Agent'
+            
+        elif "Task:" in message and len(message) > 100:  # Detailed task descriptions
+            log_entry['category'] = 'task_detail'
+            log_entry['level'] = 'INFO'
+            log_entry['logger'] = 'CrewAI.Task'
+            
+        return log_entry
+
 app = FastAPI(
     title="Salesforce AI Agent Chat",
     description="Real-time chat interface for Salesforce AI agents using WebSockets",
@@ -44,6 +157,52 @@ class ConnectionManager:
         self.user_sessions: Dict[str, dict] = {}
         self.agent_systems: Dict[str, UnifiedAgentSystem] = {}
         
+        # Setup real-time log capture
+        self.setup_real_time_logging()
+        
+    def setup_real_time_logging(self):
+        """Setup logging to capture detailed CrewAI and agent logs"""
+        # Create a custom handler that captures all logs
+        self.log_handler = WebSocketLogHandler(self)
+        self.log_handler.setLevel(logging.INFO)
+        
+        # Add handler to relevant loggers
+        loggers_to_capture = [
+            'crewai',
+            'agents',
+            'CrewExecutor',
+            'LiteLLM',
+            'crew',
+            'agents.master_orchestrator_agent',
+            'agents.unified_agent_system',
+            'SalesforceImpl'
+        ]
+        
+        for logger_name in loggers_to_capture:
+            logger = logging.getLogger(logger_name)
+            logger.addHandler(self.log_handler)
+            logger.setLevel(logging.INFO)
+        
+        # Also capture root logger for any other logs
+        root_logger = logging.getLogger()
+        root_logger.addHandler(self.log_handler)
+        
+    async def broadcast_log(self, log_entry: dict):
+        """Broadcast log entry to all connected sessions"""
+        message = {
+            'type': 'log',
+            'data': log_entry,
+            'timestamp': datetime.now().isoformat()
+        }
+        
+        # Send to all active connections
+        for session_id in list(self.active_connections.keys()):
+            try:
+                await self.send_message(session_id, message)
+            except Exception as e:
+                logger.error(f"Failed to broadcast log to {session_id}: {e}")
+                self.disconnect(session_id)
+    
     async def connect(self, websocket: WebSocket, session_id: str):
         """Accept new WebSocket connection"""
         await websocket.accept()
@@ -173,8 +332,9 @@ class ConnectionManager:
             await self.send_log_stream(session_id, {
                 'level': 'INFO',
                 'logger': 'FastAPI.WebSocket',
-                'message': f'Starting agent analysis for: {user_message[:50]}...',
-                'session_id': session_id
+                'message': f'🚀 Starting CrewAI agent analysis for: {user_message[:50]}...',
+                'session_id': session_id,
+                'category': 'processing_start'
             })
             
             # Process with agent system (this is the blocking part, but now in background)
@@ -185,8 +345,9 @@ class ConnectionManager:
             await self.send_log_stream(session_id, {
                 'level': 'INFO',
                 'logger': 'Agent.Processing',
-                'message': 'Invoking unified agent system...',
-                'session_id': session_id
+                'message': '🤖 Invoking unified agent system...',
+                'session_id': session_id,
+                'category': 'agent_start'
             })
             
             # Run the blocking agent processing in a thread pool
@@ -196,39 +357,34 @@ class ConnectionManager:
                 # Submit the blocking operation to thread pool
                 future = executor.submit(agent_system.process_user_input, user_message)
                 
-                # While waiting, send periodic status updates
-                while not future.done():
-                    await asyncio.sleep(2)  # Check every 2 seconds
-                    await self.send_log_stream(session_id, {
-                        'level': 'INFO',
-                        'logger': 'Agent.Processing',
-                        'message': 'Agent is still working...',
-                        'session_id': session_id
-                    })
-                
-                # Get the result
+                # Wait for completion (the detailed logs will stream in real-time via the log handler)
                 result = future.result()
             
             if result.get('success'):
                 # Send success status
                 await self.send_agent_status(session_id, 'Master Orchestrator', 'completed', 'Response generated successfully')
                 
-                # Send log entry
+                # Send completion log entry
                 await self.send_log_stream(session_id, {
                     'level': 'INFO',
                     'logger': 'Agent.Processing',
-                    'message': 'Agent processing completed successfully',
-                    'session_id': session_id
+                    'message': '✅ CrewAI agent processing completed successfully',
+                    'session_id': session_id,
+                    'category': 'processing_complete'
                 })
                 
-                # Send the actual response
+                # Extract implementation plan for enhanced display
+                implementation_plan = result.get('implementation_plan')
+                enhanced_response = self._enhance_response_with_tasks(result.get('response', ''), implementation_plan)
+                
+                # Send the enhanced response
                 await self.send_message(session_id, {
                     'type': 'agent_response',
-                    'message': result.get('response', ''),
+                    'message': enhanced_response,
                     'system': result.get('system', 'unknown'),
                     'conversation_state': result.get('conversation_state', 'unknown'),
                     'session_id': session_id,
-                    'implementation_plan': result.get('implementation_plan'),
+                    'implementation_plan': implementation_plan,
                     'plan_approved': result.get('plan_approved', False),
                     'timestamp': datetime.now().isoformat()
                 })
@@ -240,8 +396,9 @@ class ConnectionManager:
                 await self.send_log_stream(session_id, {
                     'level': 'ERROR',
                     'logger': 'Agent.Processing',
-                    'message': f'Agent processing failed: {error_msg}',
-                    'session_id': session_id
+                    'message': f'❌ CrewAI agent processing failed: {error_msg}',
+                    'session_id': session_id,
+                    'category': 'processing_error'
                 })
                 
                 await self.send_message(session_id, {
@@ -259,8 +416,9 @@ class ConnectionManager:
             await self.send_log_stream(session_id, {
                 'level': 'ERROR',
                 'logger': 'Agent.Processing',
-                'message': f'Background processing error: {error_msg}',
-                'session_id': session_id
+                'message': f'💥 Background processing error: {error_msg}',
+                'session_id': session_id,
+                'category': 'system_error'
             })
             
             await self.send_message(session_id, {
@@ -269,6 +427,72 @@ class ConnectionManager:
                 'session_id': session_id,
                 'timestamp': datetime.now().isoformat()
             })
+    
+    def _enhance_response_with_tasks(self, response: str, implementation_plan: dict) -> str:
+        """Enhance the response with detailed task breakdown as expandable cards"""
+        if not implementation_plan or not isinstance(implementation_plan, dict):
+            return response
+        
+        tasks = implementation_plan.get('tasks', [])
+        if not tasks:
+            return response
+        
+        # Add detailed task breakdown after the existing response
+        enhanced_response = response + "\n\n"
+        enhanced_response += "## 📋 **Detailed Implementation Tasks**\n\n"
+        enhanced_response += "*Click on any task below to see full details:*\n\n"
+        
+        for i, task in enumerate(tasks, 1):
+            task_id = task.get('id', f'T{i:03d}')
+            title = task.get('title', f'Task {i}')
+            description = task.get('description', 'No description provided')
+            effort = task.get('effort', 'TBD')
+            role = task.get('role', 'TBD')
+            dependencies = task.get('dependencies', [])
+            acceptance_criteria = task.get('acceptance_criteria', [])
+            
+            # Create expandable task card
+            enhanced_response += f"<details>\n"
+            enhanced_response += f"<summary><strong>{task_id}: {title}</strong> ({effort} - {role})</summary>\n\n"
+            enhanced_response += f"**Description:** {description}\n\n"
+            
+            if dependencies:
+                enhanced_response += f"**Dependencies:** {', '.join(dependencies)}\n\n"
+            
+            if acceptance_criteria:
+                enhanced_response += f"**Acceptance Criteria:**\n"
+                for criterion in acceptance_criteria:
+                    enhanced_response += f"- {criterion}\n"
+                enhanced_response += "\n"
+            
+            enhanced_response += f"</details>\n\n"
+        
+        # Add implementation order
+        implementation_order = implementation_plan.get('implementation_order', [])
+        if implementation_order:
+            enhanced_response += "## 🎯 **Implementation Order**\n\n"
+            enhanced_response += "Execute tasks in this sequence:\n"
+            for i, task_id in enumerate(implementation_order, 1):
+                enhanced_response += f"{i}. **{task_id}** → "
+            enhanced_response = enhanced_response.rstrip(" → ") + "\n\n"
+        
+        # Add key risks
+        key_risks = implementation_plan.get('key_risks', [])
+        if key_risks:
+            enhanced_response += "## ⚠️ **Key Risks & Mitigation**\n\n"
+            for risk in key_risks:
+                enhanced_response += f"- {risk}\n"
+            enhanced_response += "\n"
+        
+        # Add success criteria
+        success_criteria = implementation_plan.get('success_criteria', [])
+        if success_criteria:
+            enhanced_response += "## ✅ **Success Criteria**\n\n"
+            for criterion in success_criteria:
+                enhanced_response += f"- {criterion}\n"
+            enhanced_response += "\n"
+        
+        return enhanced_response
 
 # Global connection manager
 manager = ConnectionManager()

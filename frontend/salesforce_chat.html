@@ -166,6 +166,153 @@
             background: #f8f9fa;
         }
         
+        /* Agent Activity Panel */
+        .agent-activity-panel {
+            background: #fff;
+            border-top: 1px solid #e0e0e0;
+            max-height: 300px;
+            overflow-y: auto;
+            display: none; /* Initially hidden */
+        }
+        
+        .agent-activity-panel.active {
+            display: block;
+        }
+        
+        .activity-header {
+            background: #f8f9fa;
+            padding: 10px 20px;
+            border-bottom: 1px solid #e0e0e0;
+            font-weight: bold;
+            font-size: 14px;
+            color: #495057;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .activity-item {
+            border-bottom: 1px solid #f0f0f0;
+            margin-bottom: 5px;
+        }
+        
+        .activity-item:last-child {
+            border-bottom: none;
+        }
+        
+        .activity-header-item {
+            padding: 12px 20px;
+            background: #f8f9fa;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-left: 4px solid #dee2e6;
+            transition: all 0.3s ease;
+        }
+        
+        .activity-header-item:hover {
+            background: #e9ecef;
+        }
+        
+        .activity-header-item.agent-started {
+            border-left-color: #28a745;
+            background: #f8fff9;
+        }
+        
+        .activity-header-item.agent-thinking {
+            border-left-color: #ffc107;
+            background: #fffef5;
+        }
+        
+        .activity-header-item.agent-tool {
+            border-left-color: #17a2b8;
+            background: #f0fdff;
+        }
+        
+        .activity-header-item.agent-completed {
+            border-left-color: #28a745;
+            background: #f8fff9;
+        }
+        
+        .activity-header-item.crew-completion {
+            border-left-color: #6610f2;
+            background: #f8f4ff;
+            font-weight: bold;
+        }
+        
+        .activity-title {
+            font-weight: 600;
+            font-size: 13px;
+            color: #495057;
+        }
+        
+        .activity-subtitle {
+            font-size: 11px;
+            color: #6c757d;
+            margin-top: 2px;
+        }
+        
+        .activity-toggle {
+            font-size: 18px;
+            color: #6c757d;
+            transition: transform 0.3s ease;
+        }
+        
+        .activity-toggle.expanded {
+            transform: rotate(90deg);
+        }
+        
+        .activity-content {
+            padding: 15px 20px;
+            background: #fff;
+            border-left: 4px solid #e9ecef;
+            display: none;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.5;
+            color: #495057;
+            white-space: pre-wrap;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        .activity-content.expanded {
+            display: block;
+            animation: slideDown 0.3s ease-out;
+        }
+        
+        .activity-content.agent-started {
+            border-left-color: #28a745;
+        }
+        
+        .activity-content.agent-thinking {
+            border-left-color: #ffc107;
+        }
+        
+        .activity-content.agent-tool {
+            border-left-color: #17a2b8;
+        }
+        
+        .activity-content.agent-completed {
+            border-left-color: #28a745;
+        }
+        
+        .activity-content.crew-completion {
+            border-left-color: #6610f2;
+        }
+        
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                max-height: 0;
+            }
+            to {
+                opacity: 1;
+                max-height: 200px;
+            }
+        }
+        
         .message-bubble {
             margin-bottom: 20px;
             max-width: 80%;
@@ -378,6 +525,54 @@
             background: rgba(214, 158, 46, 0.1);
         }
         
+        .log-entry.DEBUG {
+            border-left-color: #805ad5;
+            background: rgba(128, 90, 213, 0.1);
+        }
+        
+        /* Category-specific styling */
+        .log-entry.crew_start {
+            border-left-color: #38a169;
+            background: rgba(56, 161, 105, 0.15);
+        }
+        
+        .log-entry.task_execution {
+            border-left-color: #3182ce;
+            background: rgba(49, 130, 206, 0.15);
+        }
+        
+        .log-entry.tool_execution {
+            border-left-color: #d69e2e;
+            background: rgba(214, 158, 46, 0.15);
+        }
+        
+        .log-entry.agent_completion {
+            border-left-color: #38a169;
+            background: rgba(56, 161, 105, 0.15);
+        }
+        
+        .log-entry.crew_completion {
+            border-left-color: #38a169;
+            background: rgba(56, 161, 105, 0.2);
+            font-weight: bold;
+        }
+        
+        .log-entry.tool_failure {
+            border-left-color: #e53e3e;
+            background: rgba(229, 62, 62, 0.2);
+        }
+        
+        .log-entry.tool_success {
+            border-left-color: #38a169;
+            background: rgba(56, 161, 105, 0.15);
+        }
+        
+        .log-entry.llm_call {
+            border-left-color: #805ad5;
+            background: rgba(128, 90, 213, 0.1);
+            opacity: 0.8;
+        }
+        
         .log-timestamp {
             color: #a0aec0;
             font-weight: bold;
@@ -533,6 +728,16 @@
                 </div>
             </div>
             
+            <!-- Agent Activity Panel -->
+            <div class="agent-activity-panel" id="agentActivityPanel">
+                <div class="activity-header">
+                    🤖 Agent Activities - Real-time Thinking Process
+                </div>
+                <div id="agentActivities">
+                    <!-- Agent activities will be dynamically added here -->
+                </div>
+            </div>
+            
             <div class="chat-input">
                 <div class="input-row">
                     <input type="text" 
@@ -565,6 +770,127 @@
         let ws = null;
         let sessionId = 'session_' + Date.now();
         let connected = false;
+        let agentActivities = new Map(); // Store agent activities by ID
+
+        function showAgentActivityPanel() {
+            const panel = document.getElementById('agentActivityPanel');
+            panel.classList.add('active');
+        }
+
+        function hideAgentActivityPanel() {
+            const panel = document.getElementById('agentActivityPanel');
+            panel.classList.remove('active');
+        }
+
+        function addAgentActivity(activityData) {
+            const activitiesContainer = document.getElementById('agentActivities');
+            const activityId = 'activity_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            
+            // Determine activity type and styling
+            let activityType = 'general';
+            let title = 'Agent Activity';
+            let subtitle = '';
+            
+            if (activityData.message.includes('🤖 Agent Started')) {
+                activityType = 'agent-started';
+                title = '🚀 Agent Started';
+                subtitle = extractAgentName(activityData.message) || 'Processing...';
+            } else if (activityData.message.includes('Agent Tool Execution')) {
+                activityType = 'agent-tool';
+                title = '🔧 Tool Execution';
+                subtitle = extractToolName(activityData.message) || 'Running tool...';
+            } else if (activityData.message.includes('Agent Final Answer')) {
+                activityType = 'agent-completed';
+                title = '✅ Agent Completed';
+                subtitle = extractAgentName(activityData.message) || 'Task finished';
+            } else if (activityData.message.includes('Crew Completion')) {
+                activityType = 'crew-completion';
+                title = '🎉 Crew Completed';
+                subtitle = 'All agents finished successfully';
+            } else if (activityData.message.includes('Thought:') || activityData.message.includes('Using Tool:')) {
+                activityType = 'agent-thinking';
+                title = '💭 Agent Thinking';
+                subtitle = 'Processing and reasoning...';
+            }
+            
+            // Create activity item
+            const activityItem = document.createElement('div');
+            activityItem.className = 'activity-item';
+            activityItem.innerHTML = `
+                <div class="activity-header-item ${activityType}" onclick="toggleActivity('${activityId}')">
+                    <div>
+                        <div class="activity-title">${title}</div>
+                        <div class="activity-subtitle">${subtitle}</div>
+                    </div>
+                    <div class="activity-toggle" id="toggle_${activityId}">▶</div>
+                </div>
+                <div class="activity-content ${activityType}" id="content_${activityId}">
+                    ${formatActivityContent(activityData.message)}
+                </div>
+            `;
+            
+            // Add to container (newest at top)
+            activitiesContainer.insertBefore(activityItem, activitiesContainer.firstChild);
+            
+            // Show the panel
+            showAgentActivityPanel();
+            
+            // Auto-expand important activities
+            if (activityType === 'agent-started' || activityType === 'crew-completion') {
+                setTimeout(() => toggleActivity(activityId), 100);
+            }
+            
+            // Keep only last 10 activities
+            while (activitiesContainer.children.length > 10) {
+                activitiesContainer.removeChild(activitiesContainer.lastChild);
+            }
+        }
+
+        function toggleActivity(activityId) {
+            const content = document.getElementById('content_' + activityId);
+            const toggle = document.getElementById('toggle_' + activityId);
+            
+            if (content.classList.contains('expanded')) {
+                content.classList.remove('expanded');
+                toggle.classList.remove('expanded');
+                toggle.textContent = '▶';
+            } else {
+                content.classList.add('expanded');
+                toggle.classList.add('expanded');
+                toggle.textContent = '▼';
+            }
+        }
+
+        function extractAgentName(message) {
+            const agentMatch = message.match(/Agent: ([^│\n]+)/);
+            return agentMatch ? agentMatch[1].trim() : null;
+        }
+
+        function extractToolName(message) {
+            const toolMatch = message.match(/Using Tool: ([^│\n]+)/);
+            return toolMatch ? toolMatch[1].trim() : null;
+        }
+
+        function formatActivityContent(message) {
+            // Clean up the message for better display
+            let content = message
+                .replace(/╭[─┬╮│]*╯/g, '') // Remove box borders
+                .replace(/│/g, '') // Remove box sides
+                .replace(/╰[─┴╯│]*╯/g, '') // Remove box borders
+                .replace(/^\s*Agent:\s*/gm, '🤖 Agent: ') // Add emoji to agent lines
+                .replace(/^\s*Task:\s*/gm, '📋 Task: ') // Add emoji to task lines
+                .replace(/^\s*Thought:\s*/gm, '💭 Thought: ') // Add emoji to thought lines
+                .replace(/^\s*Using Tool:\s*/gm, '🔧 Using Tool: ') // Add emoji to tool lines
+                .replace(/^\s*Final Answer:\s*/gm, '✅ Final Answer: ') // Add emoji to final answer
+                .trim();
+            
+            // Limit content length
+            if (content.length > 500) {
+                content = content.substring(0, 497) + '...';
+            }
+            
+            return content;
+        }
 
         function updateConnectionStatus(isConnected, text) {
             const dot = document.getElementById('connectionDot');
@@ -629,21 +955,76 @@
         function addLogEntry(logData) {
             const logsContent = document.getElementById('logsContent');
             const logDiv = document.createElement('div');
-            logDiv.className = `log-entry ${logData.level || 'INFO'}`;
+            
+            // Apply both level and category classes
+            const levelClass = logData.level || 'INFO';
+            const categoryClass = logData.category || '';
+            logDiv.className = `log-entry ${levelClass} ${categoryClass}`;
             
             const time = new Date(logData.timestamp || Date.now()).toLocaleTimeString();
+            
+            // Enhanced formatting for different log types
+            let formattedMessage = logData.message;
+            let loggerDisplay = logData.logger || 'System';
+            
+            // Simplify logger names for better readability
+            if (loggerDisplay.startsWith('agents.')) {
+                loggerDisplay = loggerDisplay.replace('agents.', '');
+            }
+            
+            // Format specific CrewAI messages
+            if (logData.category) {
+                switch(logData.category) {
+                    case 'crew_start':
+                        loggerDisplay = '🚀 CrewAI';
+                        break;
+                    case 'task_execution':
+                        loggerDisplay = '📋 Task';
+                        break;
+                    case 'tool_execution':
+                        loggerDisplay = '🔧 Tool';
+                        break;
+                    case 'agent_completion':
+                        loggerDisplay = '✅ Agent';
+                        break;
+                    case 'crew_completion':
+                        loggerDisplay = '🎉 Crew';
+                        break;
+                    case 'tool_failure':
+                        loggerDisplay = '❌ Tool';
+                        break;
+                    case 'tool_success':
+                        loggerDisplay = '✅ Tool';
+                        break;
+                    case 'llm_call':
+                        loggerDisplay = '🤖 LLM';
+                        break;
+                    case 'agent_thinking':
+                        loggerDisplay = '💭 Agent';
+                        break;
+                    case 'task_progress':
+                        loggerDisplay = '⏳ Progress';
+                        break;
+                }
+            }
+            
+            // Truncate very long messages
+            if (formattedMessage.length > 200) {
+                formattedMessage = formattedMessage.substring(0, 197) + '...';
+            }
+            
             logDiv.innerHTML = `
                 <div class="log-timestamp">[${time}]</div>
-                <div class="log-level ${logData.level || 'INFO'}">${logData.level || 'INFO'}</div>
-                <div class="log-logger">${logData.logger || 'System'}</div>
-                <div class="log-message">${logData.message}</div>
+                <div class="log-level ${levelClass}">${levelClass}</div>
+                <div class="log-logger">${loggerDisplay}</div>
+                <div class="log-message">${formattedMessage}</div>
             `;
             
             logsContent.appendChild(logDiv);
             logsContent.scrollTop = logsContent.scrollHeight;
             
-            // Keep only last 100 log entries
-            while (logsContent.children.length > 100) {
+            // Keep only last 150 log entries (increased for better visibility)
+            while (logsContent.children.length > 150) {
                 logsContent.removeChild(logsContent.firstChild);
             }
         }
@@ -669,22 +1050,34 @@
                             
                         case 'user_message_echo':
                             addMessage('user', data.message, data.timestamp);
+                            // Clear previous activities when starting new conversation
+                            document.getElementById('agentActivities').innerHTML = '';
+                            hideAgentActivityPanel();
                             break;
                             
                         case 'processing_started':
                             addMessage('system', `🚀 ${data.message}`, data.timestamp);
+                            showAgentActivityPanel();
                             break;
                             
                         case 'agent_response':
                             addMessage('agent', data.message, data.timestamp);
+                            // Hide activity panel when response is complete
+                            setTimeout(() => hideAgentActivityPanel(), 3000);
                             break;
                             
                         case 'error':
                             addMessage('error', data.message, data.timestamp);
+                            hideAgentActivityPanel();
                             break;
                             
                         case 'log':
                             addLogEntry(data.data);
+                            
+                            // Check if this log should create an agent activity
+                            if (shouldCreateActivity(data.data)) {
+                                addAgentActivity(data.data);
+                            }
                             break;
                             
                         case 'agent_status':
@@ -761,6 +1154,21 @@
         window.addEventListener('load', function() {
             setTimeout(connect, 500);
         });
+
+        function shouldCreateActivity(logData) {
+            const message = logData.message || '';
+            
+            // Create activities for these important log types
+            return (
+                message.includes('🤖 Agent Started') ||
+                message.includes('Agent Tool Execution') ||
+                message.includes('Agent Final Answer') ||
+                message.includes('Crew Completion') ||
+                message.includes('Thought:') ||
+                message.includes('Using Tool:') ||
+                (message.includes('Task:') && message.includes('Agent:'))
+            );
+        }
     </script>
 </body>
 </html> 
