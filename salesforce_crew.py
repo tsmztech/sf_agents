@@ -406,12 +406,20 @@ class CrewExecutor:
             # Load and parse output files
             outputs = self._load_output_files()
             
+            # Capture Salesforce data access information from the tool
+            salesforce_data_access = self._capture_salesforce_data_access()
+            
+            # Add Salesforce data access to the main result
+            if salesforce_data_access:
+                outputs['salesforce_data_access'] = salesforce_data_access
+            
             return {
                 'success': True,
                 'result': result,
                 'outputs': outputs,
                 'crew_type': 'interactive' if interactive else 'standard',
-                'requirement': requirement
+                'requirement': requirement,
+                'salesforce_data_access': salesforce_data_access
             }
             
         except Exception as e:
@@ -462,6 +470,35 @@ class CrewExecutor:
             return []
         
         return [f for f in os.listdir(output_dir) if f.endswith('.json')]
+    
+    def _capture_salesforce_data_access(self) -> Dict[str, Any]:
+        """Capture Salesforce data access information from the tool."""
+        try:
+            # Import the tool class to access its data access log
+            from tools.salesforce_tool import SalesforceAnalysisTool
+            
+            # Get the class-level data access log
+            tool_instance = SalesforceAnalysisTool()
+            data_access_log = tool_instance.data_access_log
+            
+            self.logger.info(f"🔍 Attempting to capture Salesforce data access...")
+            self.logger.info(f"📊 Raw data access log: {data_access_log}")
+            
+            # Only return if there's actual data
+            if (data_access_log.get('total_api_calls', 0) > 0 or 
+                data_access_log.get('objects_analyzed') or 
+                data_access_log.get('fields_analyzed') or 
+                data_access_log.get('queries_executed')):
+                
+                self.logger.info(f"✅ Captured Salesforce data access: {data_access_log.get('total_api_calls', 0)} API calls")
+                return data_access_log
+            
+            self.logger.warning(f"⚠️ No Salesforce data access found - tool may not have been called")
+            return None
+            
+        except Exception as e:
+            self.logger.warning(f"❌ Could not capture Salesforce data access: {e}")
+            return None
 
 
 # Helper functions for easy import and usage

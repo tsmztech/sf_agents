@@ -1,12 +1,31 @@
+```json
 {
   "objects_to_create": [
     {
       "api_name": "Life_Event__c",
       "label": "Life Event",
       "key_fields": [
-        "Event_Name__c",
-        "Event_Date__c",
-        "Contact__c"
+        {
+          "name": "Event Name",
+          "api_name": "Event_Name__c",
+          "type": "Text",
+          "required": true,
+          "description": "A textual representation of the life event (e.g., 'Graduation', 'Wedding')."
+        },
+        {
+          "name": "Event Date",
+          "api_name": "Event_Date__c",
+          "type": "Date",
+          "required": true,
+          "description": "The date on which the life event occurs."
+        },
+        {
+          "name": "Contact",
+          "api_name": "Contact__c",
+          "type": "Lookup",
+          "required": true,
+          "description": "Lookup relationship to the Contact object indicating the contact related to this life event."
+        }
       ],
       "sharing_model": "Private"
     }
@@ -14,30 +33,28 @@
   "automation_needed": [
     {
       "type": "Flow",
-      "name": "Email_Notification_On_Creation",
-      "purpose": "Triggers an email notification to the Contact's email when a new Life Event is created.",
-      "trigger": "After a record is created in Life_Event__c"
+      "name": "Send_Email_Notification",
+      "purpose": "Send an email notification to the associated Contact when a new Life Event is created.",
+      "trigger": "On create of Life Event record"
     }
   ],
   "security_settings": [
     {
       "component": "Profile",
       "permissions": [
-        "Read", 
-        "Create", 
-        "Edit", 
+        "Read",
+        "Create",
+        "Edit",
         "Delete"
-      ]
-    },
-    {
-      "component": "Profile",
-      "permissions": ["System Admin"] // Only System Admin can access Life_Event__c
+      ],
+      "description": "Access to the Life Event object will be granted only to the System Admin profile."
     }
   ],
   "ui_components": [
     {
       "type": "Page Layout",
-      "description": "Page layout for Life_Event__c to display Event Name, Event Date, and Contact's details."
+      "description": "The Life Event page layout should include the Event Name, Event Date, and Contact fields arranged for easy input, with the Event Name field prominently placed at the top."
     }
   ]
 }
+```

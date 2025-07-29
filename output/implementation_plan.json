@@ -8,50 +8,75 @@
     {
       "id": "T001",
       "title": "Create Life Event Object",
-      "description": "Create the custom object 'Life_Event__c' with fields: Event_Name__c, Event_Date__c, and a lookup to Contact__c. Define sharing model as Private.",
+      "description": "Create the Life Event object (Life_Event__c) with fields: Event Name (Event_Name__c), Event Date (Event_Date__c), and Contact (Contact__c). Set sharing model to Private.",
       "effort": "4 hours",
       "dependencies": [],
-      "role": "Developer",
-      "acceptance_criteria": ["Life_Event__c object is created with required fields", "Sharing model is set to Private"]
+      "role": "Admin",
+      "acceptance_criteria": [
+        "Life Event object is created with specified fields.",
+        "Fields are set to required as specified.",
+        "Correct sharing model is applied."
+      ]
     },
     {
       "id": "T002",
-      "title": "Setup Email Notification Flow",
-      "description": "Create a flow named 'Send_Life_Event_Email' to trigger an email notification to the associated contact when a new Life Event is created.",
+      "title": "Set Up Page Layout for Life Event",
+      "description": "Create a user-friendly page layout for Life Event that includes Event Name, Event Date, and Contact Lookup fields arranged for easy input.",
       "effort": "4 hours",
       "dependencies": ["T001"],
-      "role": "Developer",
-      "acceptance_criteria": ["Flow is created and activated", "Email notifications send correctly upon Life Event creation"]
+      "role": "Admin",
+      "acceptance_criteria": [
+        "Page layout includes Event Name, Event Date, and Contact fields.",
+        "Fields are arranged for optimal user input."
+      ]
     },
     {
       "id": "T003",
-      "title": "Configure Security Settings for Life Event",
-      "description": "Set profile permissions for the Life Event object to allow Read, Create, Edit, and Delete only to System Admin.",
-      "effort": "2 hours",
+      "title": "Create Email Notification Flow",
+      "description": "Develop a Flow named 'Send_Life_Event_Email' that triggers an email notification to the associated Contact when a new Life Event record is created.",
+      "effort": "6 hours",
       "dependencies": ["T001"],
-      "role": "Admin",
-      "acceptance_criteria": ["Profile access is limited to System Admin", "Other profiles have no access to Life_Event__c"]
+      "role": "Developer",
+      "acceptance_criteria": [
+        "Flow is created and activated.",
+        "Email notification is successfully sent to associated Contact upon record creation."
+      ]
     },
     {
       "id": "T004",
-      "title": "Create Page Layout for Life Event",
-      "description": "Design a user-friendly page layout for Life_Event__c that displays Event Name, Event Date, and related Contact fields.",
+      "title": "Configure Security Settings for Life Event",
+      "description": "Set permissions for the Life Event object so that only the System Admin profile has access rights (Create, Read, Edit, Delete).",
       "effort": "2 hours",
       "dependencies": ["T001"],
       "role": "Admin",
-      "acceptance_criteria": ["Page layout is created and saved", "Fields are arranged as specified"]
+      "acceptance_criteria": [
+        "System Admin profile has all necessary permissions.",
+        "Other profiles have no access to the Life Event object."
+      ]
     },
     {
       "id": "T005",
-      "title": "Perform Testing and Validation",
-      "description": "Conduct testing of the entire implementation, ensuring object creation, flow functionality, security settings, and page layout operate as intended.",
+      "title": "Testing and Validation of Life Event Setup",
+      "description": "Conduct thorough testing of the Life Event setup by creating test records and verifying that the automation and security settings work as intended.",
       "effort": "8 hours",
       "dependencies": ["T002", "T003", "T004"],
-      "role": "Admin|Developer",
-      "acceptance_criteria": ["All functional tests are completed successfully", "Documentation of results and any issues is provided"]
+      "role": "Developer",
+      "acceptance_criteria": [
+        "Test records can be created successfully.",
+        "Email notifications are sent correctly upon record creation.",
+        "Security settings are enforced according to specifications."
+      ]
     }
   ],
   "implementation_order": ["T001", "T002", "T003", "T004", "T005"],
-  "key_risks": ["Delays in flow configuration", "Potential security oversight in profile permissions", "Incomplete testing leading to issues post-deployment"],
-  "success_criteria": ["Life Event object is fully functional", "All notifications are sent as expected", "Users have appropriate access and can create Life Events"]
+  "key_risks": [
+    "Potential errors in Flow configuration leading to no email notifications.",
+    "Misconfigured permissions preventing access to the Life Event object.",
+    "Inadequate testing could result in issues going live."
+  ],
+  "success_criteria": [
+    "All tasks are completed and meet the acceptance criteria.",
+    "End-user feedback confirms usability and performance of the Life Event functionality.",
+    "Automation processes function without failure and security settings are effective."
+  ]
 }

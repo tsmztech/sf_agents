@@ -8,6 +8,7 @@ from typing import Type, Any
 from pydantic import BaseModel, Field
 import json
 import logging
+from datetime import datetime
 
 # Import our existing Salesforce connector
 try:
@@ -48,17 +49,56 @@ class SalesforceAnalysisTool(BaseTool):
     """
     args_schema: Type[BaseModel] = SalesforceAnalysisInput
     
+    # Class variable to store data access log
+    _data_access_log = {
+        "org_info": {},
+        "objects_analyzed": [],
+        "fields_analyzed": {},
+        "relationships_checked": [],
+        "queries_executed": [],
+        "analysis_timestamp": None,
+        "total_api_calls": 0
+    }
+    
+    @property
+    def data_access_log(self):
+        """Get the data access log."""
+        return self._data_access_log
+    
+    @data_access_log.setter
+    def data_access_log(self, value):
+        """Set the data access log."""
+        self._data_access_log = value
+    
     def _run(self, query: str, analysis_type: str = "schema") -> str:
         """
-        Execute Salesforce org analysis.
+        Execute Salesforce analysis.
         
         Args:
             query: What to analyze in the Salesforce org
             analysis_type: Type of analysis to perform
             
         Returns:
-            JSON string with analysis results
+            JSON string with analysis results including data access log
         """
+        from datetime import datetime
+        
+        logger.info(f"🔧 SalesforceAnalysisTool called with query: '{query}', analysis_type: '{analysis_type}'")
+        
+        # Reset and initialize data access tracking for this run
+        self.data_access_log = {
+            "org_info": {},
+            "objects_analyzed": [],
+            "fields_analyzed": {},
+            "relationships_checked": [],
+            "queries_executed": [],
+            "analysis_timestamp": datetime.now().isoformat(),
+            "total_api_calls": 0,
+            "analysis_type": analysis_type,
+            "original_query": query
+        }
+        
+        logger.info(f"📊 Data access log initialized: {self.data_access_log}")
         
         if not SalesforceConnector:
             logger.warning("SalesforceConnector not available")
@@ -69,11 +109,15 @@ class SalesforceAnalysisTool(BaseTool):
                     "Consider standard Salesforce objects like Contact, Account, Case, Opportunity",
                     "Use appropriate field types: Text, Number, Date, Lookup, Picklist",
                     "Follow Salesforce naming conventions for API names"
-                ]
+                ],
+                "salesforce_data_access": self.data_access_log
             })
         
         try:
             connector = SalesforceConnector()
+            
+            # Capture org information
+            self._log_org_info(connector)
             
             # Route to appropriate analysis method based on type
             if analysis_type == "schema":
@@ -90,6 +134,10 @@ class SalesforceAnalysisTool(BaseTool):
                 result = self._analyze_data_patterns(connector, query)
             else:
                 result = self._general_analysis(connector, query)
+            
+            # Add data access log to the result
+            if isinstance(result, dict):
+                result["salesforce_data_access"] = self.data_access_log
             
             return json.dumps(result, indent=2)
             
@@ -120,9 +168,11 @@ class SalesforceAnalysisTool(BaseTool):
         try:
             # Get all objects
             all_objects = connector.get_all_objects()
+            self._log_query_execution("GET /services/data/vXX.0/sobjects/", len(all_objects))
             
             # Get org limits for context
             org_limits = connector.get_org_limits()
+            self._log_query_execution("GET /services/data/vXX.0/limits/", 1)
             
             # Test connection and get basic org info
             connection_test = connector.test_connection()
@@ -130,6 +180,10 @@ class SalesforceAnalysisTool(BaseTool):
             # Limit objects to prevent token overflow
             custom_objects = [obj for obj in all_objects if obj.get('name', '').endswith('__c')][:20]
             standard_objects = [obj for obj in all_objects if not obj.get('name', '').endswith('__c')][:20]
+            
+            # Log object access
+            for obj in custom_objects + standard_objects:
+                self._log_object_access(obj.get('name', 'Unknown'), "list")
             
             return {
                 "org_info": connection_test,
@@ -154,12 +208,16 @@ class SalesforceAnalysisTool(BaseTool):
         try:
             # Search for objects based on query
             search_results = connector.search_objects_by_name(query)
+            self._log_query_execution(f"SEARCH objects matching '{query}'", len(search_results))
             
             detailed_objects = []
             for obj in search_results[:5]:  # Limit to first 5 for performance
                 try:
                     obj_details = connector.get_object_schema(obj['name'])
                     detailed_objects.append(obj_details)
+                    self._log_object_access(obj['name'], "describe")
+                    if 'fields' in obj_details:
+                        self._log_field_access(obj['name'], len(obj_details['fields']))
                 except Exception as e:
                     logger.warning(f"Could not get details for object {obj['name']}: {e}")
             
@@ -262,9 +320,59 @@ class SalesforceAnalysisTool(BaseTool):
                     "Analyze field usage and data quality"
                 ]
             }
-            
         except Exception as e:
             return {"error": f"Data pattern analysis failed: {str(e)}"}
+    
+    def _log_org_info(self, connector):
+        """Capture basic org information for data access tracking."""
+        try:
+            # Get org info if available
+            org_info = {
+                "instance_url": getattr(connector, 'instance_url', 'Unknown'),
+                "org_name": "Retrieved from Salesforce",
+                "connection_type": "Real-time API"
+            }
+            self.data_access_log["org_info"] = org_info
+            self.data_access_log["total_api_calls"] += 1
+        except Exception as e:
+            logger.warning(f"Could not capture org info: {e}")
+    
+    def _log_object_access(self, object_name: str, operation: str = "describe"):
+        """Log when an object is accessed."""
+        access_info = {
+            "object_name": object_name,
+            "operation": operation,
+            "timestamp": datetime.now().isoformat()
+        }
+        self.data_access_log["objects_analyzed"].append(access_info)
+        self.data_access_log["total_api_calls"] += 1
+    
+    def _log_field_access(self, object_name: str, field_count: int):
+        """Log when object fields are analyzed."""
+        self.data_access_log["fields_analyzed"][object_name] = {
+            "field_count": field_count,
+            "timestamp": datetime.now().isoformat()
+        }
+        self.data_access_log["total_api_calls"] += 1
+    
+    def _log_relationship_check(self, from_object: str, to_object: str):
+        """Log when relationships are checked."""
+        relationship_info = {
+            "from_object": from_object,
+            "to_object": to_object,
+            "timestamp": datetime.now().isoformat()
+        }
+        self.data_access_log["relationships_checked"].append(relationship_info)
+    
+    def _log_query_execution(self, query: str, result_count: int = 0):
+        """Log when SOQL queries are executed."""
+        query_info = {
+            "query": query[:100] + "..." if len(query) > 100 else query,
+            "result_count": result_count,
+            "timestamp": datetime.now().isoformat()
+        }
+        self.data_access_log["queries_executed"].append(query_info)
+        self.data_access_log["total_api_calls"] += 1
     
     def _general_analysis(self, connector: Any, query: str) -> dict:
         """General analysis for unspecified queries."""

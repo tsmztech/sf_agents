@@ -891,7 +891,74 @@
             }
         }
 
-        function addMessage(type, content, timestamp) {
+        function formatSalesforceDataSection(salesforceData) {
+            if (!salesforceData) return '';
+            
+            let html = `
+                <div style="margin-top: 20px; padding: 15px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 8px; color: white;">
+                    <h3 style="margin: 0 0 15px 0; display: flex; align-items: center; gap: 8px;">
+                        🔍 <span>Salesforce Org Data Analysis</span>
+                    </h3>
+                    <div style="background: rgba(255,255,255,0.1); padding: 12px; border-radius: 6px; margin-bottom: 12px;">
+                        <div style="font-size: 14px; margin-bottom: 8px;">📊 <strong>Real-time data retrieved from your Salesforce org:</strong></div>
+            `;
+            
+            // Add connection info
+            if (salesforceData.org_info) {
+                html += `
+                    <div style="margin-bottom: 8px; font-size: 13px;">
+                        🌐 <strong>Connected to:</strong> ${salesforceData.org_info.instance_url || 'Salesforce Org'}
+                    </div>
+                `;
+            }
+            
+            // Add metrics
+            html += `
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 10px;">
+            `;
+            
+            if (salesforceData.api_calls_made !== undefined) {
+                html += `<div style="background: rgba(255,255,255,0.1); padding: 8px; border-radius: 4px; text-align: center;">
+                    <div style="font-size: 18px; font-weight: bold;">${salesforceData.api_calls_made}</div>
+                    <div style="font-size: 11px; opacity: 0.8;">API Calls</div>
+                </div>`;
+            }
+            
+            if (salesforceData.objects_analyzed) {
+                const objectCount = Array.isArray(salesforceData.objects_analyzed) ? 
+                    salesforceData.objects_analyzed.length : 
+                    Object.keys(salesforceData.objects_analyzed).length;
+                html += `<div style="background: rgba(255,255,255,0.1); padding: 8px; border-radius: 4px; text-align: center;">
+                    <div style="font-size: 18px; font-weight: bold;">${objectCount}</div>
+                    <div style="font-size: 11px; opacity: 0.8;">Objects Analyzed</div>
+                </div>`;
+            }
+            
+            if (salesforceData.fields_examined) {
+                const fieldCount = Array.isArray(salesforceData.fields_examined) ? 
+                    salesforceData.fields_examined.length : 
+                    Object.keys(salesforceData.fields_examined).length;
+                html += `<div style="background: rgba(255,255,255,0.1); padding: 8px; border-radius: 4px; text-align: center;">
+                    <div style="font-size: 18px; font-weight: bold;">${fieldCount}</div>
+                    <div style="font-size: 11px; opacity: 0.8;">Fields Examined</div>
+                </div>`;
+            }
+            
+            if (salesforceData.queries_executed) {
+                const queryCount = Array.isArray(salesforceData.queries_executed) ? 
+                    salesforceData.queries_executed.length : 0;
+                html += `<div style="background: rgba(255,255,255,0.1); padding: 8px; border-radius: 4px; text-align: center;">
+                    <div style="font-size: 18px; font-weight: bold;">${queryCount}</div>
+                    <div style="font-size: 11px; opacity: 0.8;">Queries Executed</div>
+                </div>`;
+            }
+            
+            html += `</div></div></div>`;
+            
+            return html;
+        }
+
+        function addMessage(type, content, timestamp, data = null) {
             const chatMessages = document.getElementById('chatMessages');
             const messageDiv = document.createElement('div');
             messageDiv.className = `message-bubble ${type}`;
@@ -900,6 +967,15 @@
             let processedContent = content;
             if (type === 'agent') {
                 processedContent = marked.parse(content);
+                
+                // Check if this is a final response with Salesforce data
+                console.log('Agent response data:', data); // Debug log
+                if (data && data.salesforce_data_access) {
+                    console.log('Found Salesforce data:', data.salesforce_data_access); // Debug log
+                    processedContent += formatSalesforceDataSection(data.salesforce_data_access);
+                } else {
+                    console.log('No Salesforce data found in response'); // Debug log
+                }
             } else {
                 // Escape HTML for non-agent messages
                 processedContent = content.replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -974,7 +1050,7 @@
                             break;
                             
                         case 'agent_response':
-                            addMessage('agent', data.message, data.timestamp);
+                            addMessage('agent', data.message, data.timestamp, data);
                             // Hide activity panel when response is complete
                             setTimeout(() => hideAgentActivityPanel(), 3000);
                             break;

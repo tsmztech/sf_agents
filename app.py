@@ -1403,6 +1403,97 @@ def display_crewai_results(result: dict):
         with st.expander("📊 Implementation Plan Details"):
             st.json(outputs['implementation_plan'])
     
+    # Show Salesforce Data Analysis section
+    salesforce_data_found = False
+    all_data_access = {}
+    
+    # Collect all Salesforce data access logs from outputs
+    for output_name, output_data in outputs.items():
+        if isinstance(output_data, dict) and 'salesforce_data_access' in output_data:
+            all_data_access[output_name] = output_data['salesforce_data_access']
+            salesforce_data_found = True
+    
+    if salesforce_data_found:
+        with st.expander("🔍 Salesforce Org Data Analysis", expanded=True):
+            st.markdown("### Real-time data retrieved from your Salesforce org:")
+            
+            # Aggregate data across all analyses
+            total_api_calls = 0
+            all_objects = set()
+            all_fields = {}
+            all_queries = []
+            org_info = {}
+            
+            for analysis_name, data_access in all_data_access.items():
+                total_api_calls += data_access.get('total_api_calls', 0)
+                
+                # Collect objects
+                for obj_access in data_access.get('objects_analyzed', []):
+                    all_objects.add(obj_access.get('object_name', 'Unknown'))
+                
+                # Collect fields
+                fields_data = data_access.get('fields_analyzed', {})
+                all_fields.update(fields_data)
+                
+                # Collect queries
+                all_queries.extend(data_access.get('queries_executed', []))
+                
+                # Get org info
+                if not org_info and data_access.get('org_info'):
+                    org_info = data_access['org_info']
+            
+            # Display summary metrics
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                st.metric("🌐 API Calls Made", total_api_calls)
+            
+            with col2:
+                st.metric("📊 Objects Analyzed", len(all_objects))
+            
+            with col3:
+                st.metric("🔧 Fields Examined", sum(field_info.get('field_count', 0) for field_info in all_fields.values()))
+            
+            with col4:
+                st.metric("🔍 Queries Executed", len(all_queries))
+            
+            # Show org connection info
+            if org_info:
+                st.markdown("**🏢 Salesforce Org Connection:**")
+                st.info(f"Connected to: {org_info.get('instance_url', 'Unknown')} ({org_info.get('connection_type', 'API')})")
+            
+            # Show objects analyzed
+            if all_objects:
+                st.markdown("**📋 Salesforce Objects Analyzed:**")
+                objects_list = sorted(list(all_objects))
+                
+                # Group by custom vs standard
+                custom_objects = [obj for obj in objects_list if obj.endswith('__c')]
+                standard_objects = [obj for obj in objects_list if not obj.endswith('__c')]
+                
+                if custom_objects:
+                    st.markdown(f"*Custom Objects ({len(custom_objects)}):* {', '.join(custom_objects)}")
+                
+                if standard_objects:
+                    st.markdown(f"*Standard Objects ({len(standard_objects)}):* {', '.join(standard_objects)}")
+            
+            # Show field analysis details
+            if all_fields:
+                with st.expander("📝 Field Analysis Details"):
+                    for obj_name, field_info in all_fields.items():
+                        st.write(f"**{obj_name}**: {field_info.get('field_count', 0)} fields analyzed")
+            
+            # Show queries executed
+            if all_queries:
+                with st.expander("🔍 API Queries Executed"):
+                    for i, query_info in enumerate(all_queries[-5:], 1):  # Show last 5 queries
+                        query_text = query_info.get('query', 'Unknown query')
+                        result_count = query_info.get('result_count', 0)
+                        st.code(f"{i}. {query_text} → {result_count} results")
+                    
+                    if len(all_queries) > 5:
+                        st.write(f"... and {len(all_queries) - 5} more queries")
+    
     # Show key results
     with st.expander("🎯 Implementation Summary", expanded=True):
         if 'implementation_plan' in outputs:

@@ -775,6 +775,11 @@ Would you like me to try processing your requirement again, or would you prefer 
         
         summary_parts = []
         
+        # Add Salesforce data analysis summary first
+        sf_data_summary = self._format_salesforce_data_summary(implementation_data)
+        if sf_data_summary:
+            summary_parts.append(sf_data_summary)
+        
         # Project summary
         project_summary = implementation_data.get('project_summary', {})
         if project_summary:
@@ -919,6 +924,92 @@ Would you like me to try processing your requirement again, or would you prefer 
             summary.append(f"Tasks: {len(tasks)} implementation tasks")
         
         return "; ".join(summary) if summary else "Implementation plan available."
+    
+    def _format_salesforce_data_summary(self, implementation_data: Dict[str, Any]) -> str:
+        """Format Salesforce data access summary for user display."""
+        
+        # Look for salesforce_data_access in any of the implementation data
+        all_data_access = {}
+        
+        # Check if implementation_data has salesforce_data_access directly
+        if 'salesforce_data_access' in implementation_data:
+            all_data_access['main'] = implementation_data['salesforce_data_access']
+        
+        # Check nested data structures for salesforce_data_access
+        for key, value in implementation_data.items():
+            if isinstance(value, dict) and 'salesforce_data_access' in value:
+                all_data_access[key] = value['salesforce_data_access']
+        
+        if not all_data_access:
+            return None
+        
+        # Aggregate data across all analyses
+        total_api_calls = 0
+        all_objects = set()
+        all_fields = {}
+        org_info = {}
+        
+        for analysis_name, data_access in all_data_access.items():
+            if not isinstance(data_access, dict):
+                continue
+                
+            total_api_calls += data_access.get('total_api_calls', 0)
+            
+            # Collect objects
+            for obj_access in data_access.get('objects_analyzed', []):
+                if isinstance(obj_access, dict):
+                    all_objects.add(obj_access.get('object_name', 'Unknown'))
+            
+            # Collect fields
+            fields_data = data_access.get('fields_analyzed', {})
+            if isinstance(fields_data, dict):
+                all_fields.update(fields_data)
+            
+            # Get org info
+            if not org_info and data_access.get('org_info'):
+                org_info = data_access['org_info']
+        
+        if not (total_api_calls or all_objects or all_fields):
+            return None
+        
+        # Format the summary
+        summary_parts = []
+        
+        # Connection info
+        if org_info:
+            instance_url = org_info.get('instance_url', 'Unknown')
+            summary_parts.append(f"**🌐 Salesforce Org Analysis:** Connected to {instance_url}")
+        
+        # Data access metrics
+        metrics = []
+        if total_api_calls > 0:
+            metrics.append(f"{total_api_calls} API calls")
+        if all_objects:
+            metrics.append(f"{len(all_objects)} objects analyzed")
+        if all_fields:
+            total_fields = sum(field_info.get('field_count', 0) for field_info in all_fields.values() if isinstance(field_info, dict))
+            if total_fields > 0:
+                metrics.append(f"{total_fields} fields examined")
+        
+        if metrics:
+            summary_parts.append(f"**📊 Real-time Data Retrieved:** {', '.join(metrics)}")
+        
+        # Objects breakdown
+        if all_objects:
+            objects_list = sorted(list(all_objects))
+            custom_objects = [obj for obj in objects_list if obj.endswith('__c')]
+            standard_objects = [obj for obj in objects_list if not obj.endswith('__c')]
+            
+            objects_summary = []
+            if custom_objects:
+                objects_summary.append(f"{len(custom_objects)} custom objects")
+            if standard_objects:
+                objects_summary.append(f"{len(standard_objects)} standard objects")
+            
+            if objects_summary:
+                summary_parts.append(f"**📋 Objects Analyzed:** {', '.join(objects_summary)}")
+        
+        return "\n• ".join(summary_parts) if summary_parts else None
     
     def _save_approved_plan(self):
         """Save the approved implementation plan."""
