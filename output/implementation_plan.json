@@ -1,57 +1,104 @@
 {
   "project_summary": {
-    "total_effort": "4 days",
-    "team_size": "1-2 people",
+    "total_effort": "5 days",
+    "team_size": "2 people",
     "duration": "2 weeks"
   },
   "tasks": [
     {
       "id": "T001",
-      "title": "Create Life Event Object",
-      "description": "Create a custom object named 'Life Event' with fields: Event Name, Event Date, and Contact.",
+      "title": "Create Life Event Custom Object",
+      "description": "Create the 'Life Event' custom object with fields: Event Name, Event Date, and Contact Lookup.",
       "effort": "4 hours",
       "dependencies": [],
       "role": "Developer",
-      "acceptance_criteria": ["Life Event object is created with specified fields and sharing model set to Private."]
+      "acceptance_criteria": [
+        "Life Event object created successfully.",
+        "Fields Event Name, Event Date, and Contact are available and correctly configured."
+      ]
     },
     {
       "id": "T002",
-      "title": "Set Up Automation Flow for Notification",
-      "description": "Create a Flow named 'Notify_Contact_On_New_Life_Event' to send an email notification post Life Event creation.",
-      "effort": "6 hours",
-      "dependencies": ["T001"],
-      "role": "Developer",
-      "acceptance_criteria": ["Flow is created and tested to ensure email notification is sent when a Life Event is created."]
-    },
-    {
-      "id": "T003",
-      "title": "Configure Profile Security Settings",
-      "description": "Adjust Profile permissions to include Read, Create, Edit, Delete access for the Life Event object.",
+      "title": "Configure Sharing Settings for Life Event",
+      "description": "Set the sharing model for the Life Event custom object to Private.",
       "effort": "2 hours",
       "dependencies": ["T001"],
       "role": "Admin",
-      "acceptance_criteria": ["Profile settings updated and confirmed permissions are correctly set for access to Life Event."]
+      "acceptance_criteria": [
+        "Life Event sharing settings are configured to Private.",
+        "Access tested for different profiles."
+      ]
+    },
+    {
+      "id": "T003",
+      "title": "Set Up Create Life Event Flow",
+      "description": "Create a Flow that triggers when a user submits a new Life Event to create Life Event records.",
+      "effort": "6 hours",
+      "dependencies": ["T001"],
+      "role": "Developer",
+      "acceptance_criteria": [
+        "Flow created and activated.",
+        "Flow tested to successfully create Life Event records."
+      ]
     },
     {
       "id": "T004",
-      "title": "Set Up Page Layout for Life Event",
-      "description": "Create and customize the Page Layout for the Life Event object to ensure fields for Event Name, Event Date, and linked Contact are included.",
+      "title": "Create Life Event Validation Trigger",
+      "description": "Implement a Trigger to validate that Event Name and Event Date are populated before inserting a Life Event record.",
       "effort": "4 hours",
       "dependencies": ["T001"],
-      "role": "Admin",
-      "acceptance_criteria": ["Page layout is designed and fields are accessible for data entry."]
+      "role": "Developer",
+      "acceptance_criteria": [
+        "Trigger created and active.",
+        "Validation tested to ensure no Life Event record can be created without required fields."
+      ]
     },
     {
       "id": "T005",
+      "title": "Configure Security Permissions for Life Event",
+      "description": "Update Profile permissions to include Read, Create, Edit, Delete for the Life Event object.",
+      "effort": "3 hours",
+      "dependencies": ["T002"],
+      "role": "Admin",
+      "acceptance_criteria": [
+        "Profile permissions updated successfully.",
+        "Access rights tested for specified roles."
+      ]
+    },
+    {
+      "id": "T006",
+      "title": "Design Page Layout for Life Event",
+      "description": "Create a user-friendly Page Layout for the Life Event with fields: Event Name, Event Date, Contact.",
+      "effort": "3 hours",
+      "dependencies": ["T001"],
+      "role": "Admin",
+      "acceptance_criteria": [
+        "Page Layout created correctly and assigned to appropriate profiles.",
+        "Page Layout visually validated for ease of use."
+      ]
+    },
+    {
+      "id": "T007",
       "title": "Conduct Testing and Validation",
-      "description": "Perform testing of the Life Event object creation, notification flow, and UI to ensure everything functions as intended.",
-      "effort": "8 hours",
-      "dependencies": ["T002", "T003", "T004"],
-      "role": "Admin|Developer",
-      "acceptance_criteria": ["All functionalities work as expected, and detailed test report is created."]
+      "description": "Perform end-to-end testing of Life Event functionality, including object creation, validation, and UI interactions.",
+      "effort": "4 hours",
+      "dependencies": ["T003", "T004", "T005", "T006"],
+      "role": "QA Tester",
+      "acceptance_criteria": [
+        "All functionality tested and documented.",
+        "Bugs reported and retested after fixes."
+      ]
     }
   ],
-  "implementation_order": ["T001", "T002", "T003", "T004", "T005"],
-  "key_risks": ["Delays in Flow configuration may affect the overall timeline.", "Profile permission settings might not apply correctly.", "UI layout may not match users' expectations or requirements."],
-  "success_criteria": ["Successful creation of the Life Event object with no errors.", "Email notifications are sent correctly and received by the intended recipients.", "Users can access the Life Event object as per the configured permissions."]
+  "implementation_order": ["T001", "T002", "T003", "T004", "T005", "T006", "T007"],
+  "key_risks": [
+    "Delays in the setup of automation affecting the overall timeline.",
+    "Potential data access issues due to misconfigured permissions.",
+    "Complications during testing might require a rollback."
+  ],
+  "success_criteria": [
+    "Life Event records can be successfully created through the UI.",
+    "Validation rules are enforced effectively.",
+    "Users can access the Life Event object according to established permissions."
+  ]
 }

@@ -79,7 +79,8 @@ st.markdown("""
     .agent-message,
     .expert-message,
     .technical-message,
-    .dependency-message {
+    .dependency-message,
+    .orchestrator-message {
         display: flex;
         justify-content: flex-start;
         margin: 12px 0;
@@ -89,7 +90,8 @@ st.markdown("""
     .agent-message .message-bubble,
     .expert-message .message-bubble,
     .technical-message .message-bubble,
-    .dependency-message .message-bubble {
+    .dependency-message .message-bubble,
+    .orchestrator-message .message-bubble {
         background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
         color: white;
         padding: 12px 16px;
@@ -120,6 +122,13 @@ st.markdown("""
     .agent-status-completed .message-bubble {
         background: #10b981;
         animation: none;
+    }
+
+    /* Orchestrator-specific styling */
+    .orchestrator-message .message-bubble {
+        background: linear-gradient(135deg, #1976D2 0%, #0D47A1 100%) !important;
+        border-left: 4px solid #42A5F5;
+        box-shadow: 0 3px 15px rgba(25, 118, 210, 0.4);
     }
 
     /* Fixed Footer Input */
@@ -321,8 +330,8 @@ def initialize_session_state():
         st.session_state.processing = False
     
     # Agent system preference
-    if 'preferred_agent_system' not in st.session_state:
-        st.session_state.preferred_agent_system = AgentSystemType.AUTO
+    # Always use Master Orchestrator - no user selection needed
+    st.session_state.preferred_agent_system = AgentSystemType.ORCHESTRATOR
     if 'crew_interactive_mode' not in st.session_state:
         st.session_state.crew_interactive_mode = 'auto'  # auto, always, never
     
@@ -358,9 +367,8 @@ def initialize_session_state():
     if 'error_history' not in st.session_state:
         st.session_state.error_history = []
     
-    # Legacy compatibility - map use_crewai to preferred_agent_system
-    if 'use_crewai' not in st.session_state:
-        st.session_state.use_crewai = (st.session_state.preferred_agent_system == AgentSystemType.CREWAI)
+    # Legacy compatibility - Master Orchestrator uses modern CrewAI flow
+    st.session_state.use_crewai = True  # Always true since we're using Master Orchestrator
     
     # Legacy compatibility - initialize agent as None for old code compatibility
     if 'agent' not in st.session_state:
@@ -486,69 +494,33 @@ def get_agent_status_display() -> str:
         return "🤖 **Master Agent** is processing your request..."
 
 def display_conversation_history():
-    """Display the conversation history with modern chat bubble styling."""
+    """Display the conversation history with simple chat styling."""
     if not st.session_state.conversation_history:
-        # Display welcome message in system message style
-        st.markdown('''
-            <div class="agent-label">🤖 Master Agent • Welcome</div>
-            <div class="agent-message">
-                <div class="message-bubble">
-                    <strong>👋 Welcome to Salesforce AI Agent System</strong><br><br>
-                    I'll help you transform your business requirements into detailed Salesforce implementation plans.<br><br>
-                    <strong>How it works:</strong><br>
-                    • Describe your requirement in natural language<br>
-                    • I'll analyze and suggest enhancements<br>
-                    • You choose what to include<br>
-                    • Get a comprehensive implementation plan<br><br>
-                    Ready to get started? Tell me about your business requirement! 🚀
-                </div>
-            </div>
-        ''', unsafe_allow_html=True)
+        st.markdown(
+            '<div style="text-align: center; color: #666; margin: 50px 0;">'
+            '💬 Start a conversation by describing your Salesforce requirement'
+            '</div>', 
+            unsafe_allow_html=True
+        )
         return
     
-    for i, message in enumerate(st.session_state.conversation_history):
-        timestamp = datetime.fromisoformat(message['timestamp']).strftime("%H:%M")
-        
+    # Simple message display
+    for message in st.session_state.conversation_history:
         if message['role'] == 'user':
-            # User message - right aligned
+            # User message - right aligned, blue background
             st.markdown(f'''
-                <div class="user-label">You • {timestamp}</div>
-                <div class="user-message">
-                    <div class="message-bubble">
+                <div style="display: flex; justify-content: flex-end; margin: 10px 0;">
+                    <div style="background: #007bff; color: white; padding: 10px 15px; border-radius: 15px; max-width: 70%; word-wrap: break-word;">
                         {message['content']}
                     </div>
                 </div>
             ''', unsafe_allow_html=True)
-            
-            # Add agent status bubble after user message (if there's a following agent response)
-            if i < len(st.session_state.conversation_history) - 1:
-                next_message = st.session_state.conversation_history[i + 1]
-                if next_message['role'] == 'agent':
-                    # Calculate processing time
-                    user_time = datetime.fromisoformat(message['timestamp'])
-                    agent_time = datetime.fromisoformat(next_message['timestamp'])
-                    duration = (agent_time - user_time).total_seconds()
-                    
-                    # Determine which agent processed this
-                    agent_info = get_agent_info_from_message(next_message)
-                    
-                    st.markdown(f'''
-                        <div class="agent-status agent-status-completed">
-                            <div class="message-bubble">
-                                {agent_info['icon']} {agent_info['name']} completed analysis (thought for {duration:.1f}s)
-                            </div>
-                        </div>
-                    ''', unsafe_allow_html=True)
-        
-        elif message['role'] == 'agent':
-            # Agent message - left aligned
-            agent_info = get_agent_info_from_message(message)
-            
+        elif message['role'] in ['agent', 'orchestrator']:
+            # Agent message - left aligned, gray background  
             st.markdown(f'''
-                <div class="agent-label">{agent_info['icon']} {agent_info['name']} • {timestamp}</div>
-                <div class="{agent_info['css_class']}">
-                    <div class="message-bubble">
-                        {message['content']}
+                <div style="display: flex; justify-content: flex-start; margin: 10px 0;">
+                    <div style="background: #f1f3f4; color: #333; padding: 10px 15px; border-radius: 15px; max-width: 70%; word-wrap: break-word;">
+                        🤖 {message['content']}
                     </div>
                 </div>
             ''', unsafe_allow_html=True)
@@ -579,6 +551,12 @@ def get_agent_info_from_message(message):
             'name': 'Dependency Resolver',
             'icon': '📊',
             'css_class': 'dependency-message'
+        }
+    elif 'orchestrator' in message_type or message.get('role') == 'orchestrator':
+        return {
+            'name': 'Master Orchestrator',
+            'icon': '🎯',
+            'css_class': 'orchestrator-message'
         }
     elif 'crewai' in message_type or 'crew' in message_content:
         return {
@@ -828,21 +806,27 @@ def display_sidebar():
         st.subheader("🔧 Configuration")
         st.success("✅ OpenAI API configured")
         
-        # CrewAI Settings
-        st.subheader("🤖 Agent System")
-        crew_mode = st.toggle(
-            "🚀 Use CrewAI (Recommended)", 
-            value=st.session_state.use_crewai,
-            help="CrewAI provides authentic agentic collaboration vs manual orchestration"
-        )
+        # System Status Display (Automatic - No user selection needed)
+        st.subheader("🎯 AI Agent System")
         
-        if crew_mode != st.session_state.use_crewai:
-            st.session_state.use_crewai = crew_mode
-            # Update the preferred agent system to match the toggle
-            st.session_state.preferred_agent_system = AgentSystemType.CREWAI if crew_mode else AgentSystemType.LEGACY
-            # Reset unified agent to apply new preference
-            st.session_state.unified_agent = None
-            st.rerun()
+        # Brief explanation
+        st.caption("🤖 **Automatic Multi-Agent Orchestration** - The system intelligently coordinates specialist agents behind the scenes")
+        
+        # Display current system status
+        if st.session_state.unified_agent:
+            system_status = st.session_state.unified_agent.get_system_status()
+            active_system = system_status.get('active_system', 'unknown')
+            
+            if active_system == 'orchestrator':
+                st.success("🎯 **Master Orchestrator Active** - Coordinating Schema Expert, Technical Architect, and Dependency Resolver agents")
+            elif active_system == 'crewai':
+                st.info("🚀 **CrewAI Active** - Multi-agent collaboration system")
+            elif active_system == 'legacy':
+                st.info("⚙️ **Legacy System Active** - Basic agent system")
+            else:
+                st.warning(f"🔄 **System Status**: {active_system}")
+        else:
+            st.info("🔄 **Initializing Master Orchestrator...**")
         
         if st.session_state.use_crewai:
             st.caption("✨ **CrewAI Mode**: True autonomous agent collaboration")
@@ -1058,8 +1042,18 @@ def process_user_input(user_input: str):
         
         # Handle results
         if result.get('success'):
-            # Display success response
-            if result.get('system') == 'crewai':
+            # Display success response based on system type
+            system_type = result.get('system', 'unknown')
+            
+            if system_type == 'orchestrator':
+                # Orchestrator responses are already in conversation history
+                # Check if there's an implementation plan to display
+                if result.get('implementation_plan'):
+                    display_implementation_plan(result.get('implementation_plan', {}))
+                elif result.get('plan_approved'):
+                    st.balloons()  # Celebrate completion
+                    
+            elif system_type == 'crewai':
                 display_crewai_results(result.get('result', {}))
             else:
                 # Handle legacy system response
@@ -1297,6 +1291,67 @@ def process_user_input_legacy(user_input: str):
         
     finally:
         st.session_state.processing = False
+
+def display_implementation_plan(plan_data: Dict[str, Any]):
+    """Display implementation plan from orchestrator results."""
+    if not plan_data:
+        return
+    
+    st.success("📋 **Implementation Plan Generated!**")
+    
+    # Show plan summary
+    project_summary = plan_data.get('project_summary', {})
+    if project_summary:
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Timeline", project_summary.get('duration', 'TBD'))
+        with col2:
+            st.metric("Total Effort", project_summary.get('total_effort', 'TBD'))
+        with col3:
+            st.metric("Team Size", project_summary.get('team_size', 'TBD'))
+    
+    # Show tasks breakdown
+    tasks = plan_data.get('tasks', [])
+    if tasks:
+        st.subheader(f"📊 Implementation Tasks ({len(tasks)} total)")
+        
+        # Group tasks by role
+        admin_tasks = [t for t in tasks if t.get('role') == 'Admin']
+        dev_tasks = [t for t in tasks if t.get('role') == 'Developer']
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.write(f"**👤 Admin Tasks: {len(admin_tasks)}**")
+            for task in admin_tasks[:3]:  # Show first 3
+                st.write(f"• {task.get('title', 'Untitled')} ({task.get('effort', 'TBD')})")
+            if len(admin_tasks) > 3:
+                st.write(f"• ... and {len(admin_tasks) - 3} more")
+                
+        with col2:
+            st.write(f"**👨‍💻 Developer Tasks: {len(dev_tasks)}**")
+            for task in dev_tasks[:3]:  # Show first 3
+                st.write(f"• {task.get('title', 'Untitled')} ({task.get('effort', 'TBD')})")
+            if len(dev_tasks) > 3:
+                st.write(f"• ... and {len(dev_tasks) - 3} more")
+    
+    # Show risks and success criteria
+    risks = plan_data.get('key_risks', [])
+    success_criteria = plan_data.get('success_criteria', [])
+    
+    if risks or success_criteria:
+        col1, col2 = st.columns(2)
+        
+        if risks:
+            with col1:
+                st.write("**⚠️ Key Risks:**")
+                for risk in risks[:3]:
+                    st.write(f"• {risk}")
+                    
+        if success_criteria:
+            with col2:
+                st.write("**✅ Success Criteria:**")
+                for criterion in success_criteria[:3]:
+                    st.write(f"• {criterion}")
 
 def display_crewai_results(result: dict):
     """Display CrewAI crew results in Streamlit."""
@@ -2047,67 +2102,10 @@ def display_real_time_agent_activity():
             st.rerun()
 
 def main():
-    """Main application function."""
+    """Main application function with simple chat interface."""
+    
+    # Initialize session state
     initialize_session_state()
-    
-    # Import config to check test flag
-    from config import Config
-    
-    # Check if we should use environment variables (test mode)
-    # Only use env config if flag is enabled AND user hasn't forced UI config
-    if Config.USE_ENV_CONFIG and not st.session_state.force_ui_config:
-        # Test mode: Use environment variables from .env file
-        if not _validate_env_config():
-            st.error("❌ Test mode enabled but environment variables are missing or invalid. Please check your .env file.")
-            st.info("💡 Set USE_ENV_CONFIG=False in .env to use UI configuration instead.")
-            return
-        
-        # Set config as complete and load from env
-        st.session_state.config_complete = True
-        _load_config_from_env()
-        
-        # Show test mode indicator in sidebar
-        with st.sidebar:
-            st.success("🧪 **Test Mode Active**")
-            st.info("Using .env configuration")
-            if st.button("🔄 Switch to UI Config"):
-                # Temporarily disable test mode for this session
-                st.session_state.force_ui_config = True
-                st.session_state.config_complete = False
-                st.rerun()
-    
-    # Show configuration popup if not complete (and not in test mode)
-    if not st.session_state.config_complete:
-        show_configuration_popup()
-        return
-    
-    # Set environment variables from session state for the agents to use
-    import os
-    os.environ['OPENAI_API_KEY'] = st.session_state.openai_api_key
-    os.environ['SALESFORCE_INSTANCE_URL'] = st.session_state.sf_instance_url
-    os.environ['SALESFORCE_CLIENT_ID'] = st.session_state.sf_client_id
-    os.environ['SALESFORCE_CLIENT_SECRET'] = st.session_state.sf_client_secret
-    os.environ['SALESFORCE_DOMAIN'] = st.session_state.sf_domain
-    
-    # Set username-password fields if available (for legacy flow)
-    if st.session_state.sf_username:
-        os.environ['SALESFORCE_USERNAME'] = st.session_state.sf_username
-    if st.session_state.sf_password:
-        os.environ['SALESFORCE_PASSWORD'] = st.session_state.sf_password
-    if st.session_state.sf_security_token:
-        os.environ['SALESFORCE_SECURITY_TOKEN'] = st.session_state.sf_security_token
-    
-    # Perform startup validation
-    if not hasattr(st.session_state, 'startup_validation_complete'):
-        validation_errors = validate_configuration_at_startup()
-        st.session_state.startup_validation_complete = True
-        st.session_state.validation_errors = validation_errors
-    
-    # Display sidebar
-    display_sidebar()
-    
-    # Display startup validation results in sidebar
-    display_startup_validation_results(st.session_state.get('validation_errors', []))
     
     # Initialize unified agent system if needed
     if not st.session_state.unified_agent:
@@ -2117,73 +2115,100 @@ def main():
             )
             st.session_state.conversation_history = st.session_state.unified_agent.get_conversation_history()
         except Exception as e:
-            error_response = error_handler.handle_error(e, "Agent system initialization")
-            formatted_error = format_error_for_ui(error_response)
-            st.error(f"{formatted_error['title']}: {formatted_error['message']}")
+            st.error(f"Agent initialization error: {str(e)}")
             return
     
-    # Display conversation history with modern chat styling
-    display_conversation_history()
+    # Display sidebar
+    display_sidebar()
     
-    # Display agent activities (real-time status)
-    display_agent_activities()
+    # Simple CSS for the chat
+    st.markdown("""
+    <style>
+    .main .block-container {
+        padding-top: 1rem !important;
+        max-width: 800px !important;
+        padding-bottom: 100px !important;
+    }
     
-    # Expert suggestions panel (when available)
-    display_expert_suggestions_panel()
-
-    # Display real-time agent activity in the chat interface
-    display_real_time_agent_activity()
+    .chat-input-container {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: white;
+        padding: 20px;
+        border-top: 1px solid #ddd;
+        z-index: 1000;
+    }
+    </style>
+    """, unsafe_allow_html=True)
     
-    # Fixed footer with input
-    create_chat_input_footer()
-
-def create_chat_input_footer():
-    """Create the fixed footer with chat input."""
+    # Display conversation history
+    if st.session_state.conversation_history:
+        for message in st.session_state.conversation_history:
+            if message['role'] == 'user':
+                # User message - right aligned, blue
+                st.markdown(f'''
+                    <div style="display: flex; justify-content: flex-end; margin: 10px 0;">
+                        <div style="background: #007bff; color: white; padding: 10px 15px; border-radius: 15px; max-width: 70%; word-wrap: break-word;">
+                            {message['content']}
+                        </div>
+                    </div>
+                ''', unsafe_allow_html=True)
+            else:
+                # Agent message - left aligned, gray
+                st.markdown(f'''
+                    <div style="display: flex; justify-content: flex-start; margin: 10px 0;">
+                        <div style="background: #f1f3f4; color: #333; padding: 10px 15px; border-radius: 15px; max-width: 70%; word-wrap: break-word;">
+                            🤖 {message['content']}
+                        </div>
+                    </div>
+                ''', unsafe_allow_html=True)
+    else:
+        st.markdown('<div style="text-align: center; color: #666; margin: 50px 0;">💬 Start a conversation by typing below</div>', unsafe_allow_html=True)
     
-    # Dynamic spacing based on viewport and content
-    content_length = len(st.session_state.conversation_history)
-    min_spacing = max(80, min(120, content_length * 5))  # Adaptive spacing
-    st.markdown(f'<div style="height: {min_spacing}px;"></div>', unsafe_allow_html=True)
+    # Fixed input at bottom
+    st.markdown('<div style="height: 100px;"></div>', unsafe_allow_html=True)  # Spacer
     
-    # Show processing indicator if agents are working
-    if st.session_state.processing:
-        st.markdown('''
-            <div class="processing-indicator">
-                🤖 Agents are working on your request... Please wait.
-            </div>
-        ''', unsafe_allow_html=True)
-    
-    # Use Streamlit's form in the footer
-    with st.form("chat_input_form", clear_on_submit=True):
-        col1, col2 = st.columns([0.85, 0.15])
-        
-        with col1:
-            user_input = st.text_area(
-                "Message",
-                label_visibility="collapsed",
-                placeholder="Describe what you need in Salesforce..." if not st.session_state.processing else "Please wait for agents to finish...",
-                disabled=st.session_state.processing,
-                key="chat_input",
-                height=44
-            )
-        
-        with col2:
-            submit_text = "⏳" if st.session_state.processing else "📤"
-            submit_button = st.form_submit_button(
-                submit_text,
-                disabled=st.session_state.processing,
-                use_container_width=True
-            )
-        
-        if submit_button and user_input:
-            try:
-                process_user_input(user_input)
+    # Create input container
+    input_container = st.container()
+    with input_container:
+        with st.form("chat_form", clear_on_submit=True):
+            col1, col2 = st.columns([4, 1])
+            with col1:
+                user_input = st.text_input("Your message", placeholder="Type your Salesforce requirement here...", label_visibility="collapsed")
+            with col2:
+                send_button = st.form_submit_button("Send")
+            
+            if send_button and user_input.strip():
+                # Add user message immediately
+                st.session_state.conversation_history.append({
+                    'role': 'user',
+                    'content': user_input,
+                    'timestamp': datetime.now().isoformat(),
+                    'message_type': 'user_input'
+                })
+                
+                # Process with agent
+                try:
+                    result = st.session_state.unified_agent.process_user_input(user_input)
+                    if result.get('success') and result.get('response'):
+                        st.session_state.conversation_history.append({
+                            'role': 'agent',
+                            'content': result['response'],
+                            'timestamp': datetime.now().isoformat(),
+                            'message_type': 'agent_response'
+                        })
+                except Exception as e:
+                    st.session_state.conversation_history.append({
+                        'role': 'agent',
+                        'content': f"Sorry, I encountered an error: {str(e)}",
+                        'timestamp': datetime.now().isoformat(),
+                        'message_type': 'error'
+                    })
+                
+                # Refresh to show new messages
                 st.rerun()
-            except Exception as e:
-                error_response = error_handler.handle_error(e, "Chat input processing")
-                formatted_error = format_error_for_ui(error_response)
-                st.error(f"{formatted_error['title']}: {formatted_error['message']}")
-                st.session_state.processing = False
 
 if __name__ == "__main__":
     main() 

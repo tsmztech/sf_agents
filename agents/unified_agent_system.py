@@ -22,13 +22,15 @@ from .memory_manager import MemoryManager
 from .salesforce_expert_agent import SalesforceSchemaExpertAgent
 from .technical_architect_agent import SalesforceTechnicalArchitectAgent
 from .dependency_resolver_agent import DependencyResolverAgent
+from .master_orchestrator_agent import MasterOrchestratorAgent
 
 logger = logging.getLogger(__name__)
 
 class AgentSystemType(Enum):
     """Available agent system types."""
-    CREWAI = "crewai"
-    LEGACY = "legacy"
+    ORCHESTRATOR = "orchestrator"  # New hierarchical master orchestrator (recommended)
+    CREWAI = "crewai"  # Direct CrewAI usage
+    LEGACY = "legacy"  # Old master agent system
     AUTO = "auto"  # Automatically choose based on availability and complexity
 
 class UnifiedAgentSystem:
@@ -73,32 +75,47 @@ class UnifiedAgentSystem:
             except Exception as e:
                 logger.warning(f"Failed to initialize CrewAI system: {e}")
         
-        # Initialize Legacy system
+        # Initialize Legacy system (old master agent)
         try:
             from .master_agent import SalesforceRequirementDeconstructorAgent
             self.legacy_system = SalesforceRequirementDeconstructorAgent(self.session_id)
             logger.info("Legacy system initialized successfully")
         except Exception as e:
-            logger.error(f"Failed to initialize Legacy system: {e}")
-            raise RuntimeError("No agent systems available")
+            logger.warning(f"Failed to initialize Legacy system: {e}")
+            self.legacy_system = None
+        
+        # Initialize Master Orchestrator (new hierarchical system)
+        try:
+            self.orchestrator_system = MasterOrchestratorAgent(self.session_id)
+            logger.info("Master Orchestrator system initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize Master Orchestrator system: {e}")
+            if not self.crewai_system and not self.legacy_system:
+                raise RuntimeError("No agent systems available")
     
     def _select_active_system(self):
         """Select the active agent system based on preferences and availability."""
-        if self.preferred_system == AgentSystemType.CREWAI and self.crewai_system:
+        if self.preferred_system == AgentSystemType.ORCHESTRATOR and hasattr(self, 'orchestrator_system') and self.orchestrator_system:
+            self.active_system = AgentSystemType.ORCHESTRATOR
+        elif self.preferred_system == AgentSystemType.CREWAI and self.crewai_system:
             self.active_system = AgentSystemType.CREWAI
         elif self.preferred_system == AgentSystemType.LEGACY and self.legacy_system:
             self.active_system = AgentSystemType.LEGACY
         elif self.preferred_system == AgentSystemType.AUTO:
-            # Auto-select: prefer CrewAI if available, fallback to Legacy
-            if self.crewai_system:
+            # Auto-select: prefer Orchestrator, then CrewAI, then Legacy
+            if hasattr(self, 'orchestrator_system') and self.orchestrator_system:
+                self.active_system = AgentSystemType.ORCHESTRATOR
+            elif self.crewai_system:
                 self.active_system = AgentSystemType.CREWAI
             elif self.legacy_system:
                 self.active_system = AgentSystemType.LEGACY
             else:
                 raise RuntimeError("No agent systems available")
         else:
-            # Fallback selection
-            if self.legacy_system:
+            # Fallback selection: prioritize Orchestrator
+            if hasattr(self, 'orchestrator_system') and self.orchestrator_system:
+                self.active_system = AgentSystemType.ORCHESTRATOR
+            elif self.legacy_system:
                 self.active_system = AgentSystemType.LEGACY
             elif self.crewai_system:
                 self.active_system = AgentSystemType.CREWAI
@@ -126,13 +143,36 @@ class UnifiedAgentSystem:
         self.memory_manager.add_message("user", user_input, "requirement")
         
         try:
-            if self.active_system == AgentSystemType.CREWAI:
+            if self.active_system == AgentSystemType.ORCHESTRATOR:
+                return self._process_with_orchestrator(user_input)
+            elif self.active_system == AgentSystemType.CREWAI:
                 return self._process_with_crewai(user_input)
             else:
                 return self._process_with_legacy(user_input)
         except Exception as e:
             logger.error(f"Error in {self.active_system.value} system: {e}")
             return self._handle_system_error(e, user_input)
+    
+    def _process_with_orchestrator(self, user_input: str) -> Dict[str, Any]:
+        """Process input using Master Orchestrator system."""
+        try:
+            result = self.orchestrator_system.process_user_input(user_input)
+            
+            # The orchestrator returns a structured response
+            return {
+                "success": True,
+                "response": result.get("response", ""),
+                "system": "orchestrator",
+                "conversation_state": result.get("state", "unknown"),
+                "type": result.get("type", "general"),
+                "session_id": result.get("session_id", self.session_id),
+                "implementation_plan": result.get("implementation_plan"),
+                "plan_approved": result.get("plan_approved", False)
+            }
+            
+        except Exception as e:
+            logger.error(f"Orchestrator system error: {e}")
+            raise
     
     def _process_with_crewai(self, user_input: str) -> Dict[str, Any]:
         """Process input using CrewAI system."""
@@ -297,11 +337,16 @@ class UnifiedAgentSystem:
     
     def get_system_status(self) -> Dict[str, Any]:
         """Get status of all available systems."""
+        orchestrator_state = "unknown"
+        if hasattr(self, 'orchestrator_system') and self.orchestrator_system:
+            orchestrator_state = self.orchestrator_system.get_current_state()
+            
         return {
             "active_system": self.active_system.value if self.active_system else "none",
+            "orchestrator_available": hasattr(self, 'orchestrator_system') and self.orchestrator_system is not None,
             "crewai_available": self.crewai_system is not None,
             "legacy_available": self.legacy_system is not None,
-            "conversation_state": self.conversation_state,
+            "conversation_state": orchestrator_state if self.active_system == AgentSystemType.ORCHESTRATOR else self.conversation_state,
             "session_id": self.session_id
         }
     

@@ -14,9 +14,15 @@
   "automation_needed": [
     {
       "type": "Flow",
-      "name": "Notify_Contact_On_New_Life_Event",
-      "purpose": "Sends an email notification to the associated Contact when a new Life Event is created.",
-      "trigger": "After a record is created"
+      "name": "Create_Life_Event_Flow",
+      "purpose": "To create Life Event records associated with a Contact upon user submission.",
+      "trigger": "When a user submits a new Life Event through the UI."
+    },
+    {
+      "type": "Trigger",
+      "name": "Life_Event_Validation_Trigger",
+      "purpose": "Ensures that Event Name and Event Date are populated before inserting a Life Event record.",
+      "trigger": "Before Insert"
     }
   ],
   "security_settings": [
@@ -26,14 +32,15 @@
         "Read",
         "Create",
         "Edit",
-        "Delete"
+        "Delete",
+        "View All Data"
       ]
     }
   ],
   "ui_components": [
     {
       "type": "Page Layout",
-      "description": "Page layout includes fields for Event Name, Event Date, and associated Contact fields for data entry."
+      "description": "Create a user-friendly page layout for Life Event with fields: Event Name, Event Date, and Contact Lookup."
     }
   ]
 }
