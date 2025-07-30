@@ -1,31 +1,13 @@
-```json
 {
   "objects_to_create": [
     {
-      "api_name": "Life_Event__c",
-      "label": "Life Event",
+      "api_name": "Employee__c",
+      "label": "Employee",
       "key_fields": [
-        {
-          "name": "Event Name",
-          "api_name": "Event_Name__c",
-          "type": "Text",
-          "required": true,
-          "description": "A textual representation of the life event (e.g., 'Graduation', 'Wedding')."
-        },
-        {
-          "name": "Event Date",
-          "api_name": "Event_Date__c",
-          "type": "Date",
-          "required": true,
-          "description": "The date on which the life event occurs."
-        },
-        {
-          "name": "Contact",
-          "api_name": "Contact__c",
-          "type": "Lookup",
-          "required": true,
-          "description": "Lookup relationship to the Contact object indicating the contact related to this life event."
-        }
+        "Employee_Name__c",
+        "Email__c",
+        "Hire_Date__c",
+        "Phone_Number__c"
       ],
       "sharing_model": "Private"
     }
@@ -33,9 +15,9 @@
   "automation_needed": [
     {
       "type": "Flow",
-      "name": "Send_Email_Notification",
-      "purpose": "Send an email notification to the associated Contact when a new Life Event is created.",
-      "trigger": "On create of Life Event record"
+      "name": "Email_Unique_Validation_Flow",
+      "purpose": "Ensure the Email field is unique and alerts if a duplicate is being created.",
+      "trigger": "Before Insert and Before Update on Employee__c"
     }
   ],
   "security_settings": [
@@ -46,15 +28,13 @@
         "Create",
         "Edit",
         "Delete"
-      ],
-      "description": "Access to the Life Event object will be granted only to the System Admin profile."
+      ]
     }
   ],
   "ui_components": [
     {
       "type": "Page Layout",
-      "description": "The Life Event page layout should include the Event Name, Event Date, and Contact fields arranged for easy input, with the Event Name field prominently placed at the top."
+      "description": "Employee Page Layout displaying Employee Name, Email, Hire Date, and Phone Number fields."
     }
   ]
 }
-```

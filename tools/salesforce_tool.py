@@ -22,11 +22,18 @@ logger = logging.getLogger(__name__)
 
 class SalesforceAnalysisInput(BaseModel):
     """Input schema for Salesforce analysis tool."""
-    query: str = Field(description="What to analyze in the Salesforce org (objects, fields, relationships, etc.)")
+    query: str = Field(
+        description="What to analyze in the Salesforce org (objects, fields, relationships, etc.)",
+        default="Analyze Salesforce org schema and objects"
+    )
     analysis_type: str = Field(
         description="Type of analysis: 'schema', 'objects', 'fields', 'relationships', 'limits', 'data_patterns'",
         default="schema"
     )
+    
+    class Config:
+        # Allow extra fields for compatibility
+        extra = "allow"
 
 class SalesforceAnalysisTool(BaseTool):
     """
@@ -70,18 +77,49 @@ class SalesforceAnalysisTool(BaseTool):
         """Set the data access log."""
         self._data_access_log = value
     
-    def _run(self, query: str, analysis_type: str = "schema") -> str:
+    def _run(self, query: str = None, analysis_type: str = "schema", **kwargs) -> str:
         """
         Execute Salesforce analysis.
         
         Args:
             query: What to analyze in the Salesforce org
             analysis_type: Type of analysis to perform
+            **kwargs: Additional arguments for compatibility
             
         Returns:
             JSON string with analysis results including data access log
         """
         from datetime import datetime
+        
+        # Handle different argument formats from different CrewAI versions
+        logger.debug(f"Tool called with args - query: {query}, analysis_type: {analysis_type}, kwargs: {kwargs}")
+        
+        if query is None and kwargs:
+            # Try to extract query from kwargs or first positional argument
+            if 'query' in kwargs:
+                query = kwargs['query']
+            elif len(kwargs) > 0:
+                # Take first value if it's a string
+                first_value = list(kwargs.values())[0]
+                if isinstance(first_value, str):
+                    query = first_value
+                elif isinstance(first_value, dict):
+                    # Handle nested dictionary structures
+                    if 'description' in first_value:
+                        query = first_value['description']
+                    elif 'query' in first_value:
+                        query = first_value['query']
+                    else:
+                        # Try to find any string value in the dict
+                        for key, value in first_value.items():
+                            if isinstance(value, str) and len(value) > 0:
+                                query = value
+                                break
+        
+        # Ensure we have a valid query
+        if not query or not isinstance(query, str):
+            query = "Analyze Salesforce org schema and objects"
+            logger.warning(f"⚠️ Invalid or missing query, using default: '{query}'")
         
         logger.info(f"🔧 SalesforceAnalysisTool called with query: '{query}', analysis_type: '{analysis_type}'")
         
@@ -406,6 +444,26 @@ class SalesforceAnalysisTool(BaseTool):
                 return word
                 
         return None
+
+    def run(self, *args, **kwargs) -> str:
+        """Alternative entry point for different CrewAI versions."""
+        try:
+            return self._run(*args, **kwargs)
+        except Exception as e:
+            logger.error(f"Tool execution error: {e}")
+            return json.dumps({
+                "error": "Tool execution failed",
+                "message": str(e),
+                "fallback_recommendations": [
+                    "Use standard Salesforce objects: Account, Contact, Opportunity, Case",
+                    "Consider custom objects with __c suffix",
+                    "Use appropriate field types: Text, Number, Date, Lookup"
+                ]
+            })
+    
+    def __call__(self, *args, **kwargs) -> str:
+        """Make the tool callable directly."""
+        return self.run(*args, **kwargs)
 
 # Export the tool for use in crews
 __all__ = ['SalesforceAnalysisTool'] 

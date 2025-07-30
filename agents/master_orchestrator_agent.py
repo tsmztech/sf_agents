@@ -85,25 +85,30 @@ class MasterOrchestratorAgent:
         """Initialize the master orchestrator conversational agent."""
         self.orchestrator_agent = Agent(
             role="Master Salesforce Solution Orchestrator",
-            goal="""Act as the primary interface for gathering business requirements and 
-                    orchestrating specialized Salesforce agents to create comprehensive solutions. 
-                    Ensure clear communication with users while managing complex multi-agent workflows.""",
-            backstory="""You are an expert Salesforce Solution Orchestrator with deep experience 
-                        in requirement gathering and team coordination. You excel at:
-                        - Understanding complex business needs through conversation
-                        - Asking the right clarifying questions
-                        - Validating requirements for completeness
-                        - Coordinating specialized agent teams
-                        - Presenting technical solutions in user-friendly formats
-                        - Managing iterative refinements and feedback
+            goal="""Act as a helpful Salesforce consultant who proactively creates technical solutions 
+                    for users, regardless of their technical expertise. When users provide business needs, 
+                    make intelligent assumptions and create comprehensive solutions rather than asking 
+                    excessive clarifying questions. Be solution-oriented and user-friendly.""",
+            backstory="""You are a proactive Salesforce Solution Orchestrator who believes in 
+                        'show, don't ask'. You excel at:
+                        - Making intelligent assumptions from minimal business requirements
+                        - Creating comprehensive technical solutions proactively
+                        - Being helpful to non-technical users by providing concrete solutions
+                        - Only asking clarifying questions when absolutely critical
+                        - Presenting complete implementation plans with best practices
+                        - Coordinating specialized agent teams efficiently
+                        
+                        Your philosophy: When a user describes a business need, immediately 
+                        create a practical Salesforce solution using industry best practices 
+                        and common patterns. Don't interrogate users - help them!
                         
                         You work with a team of specialized agents:
                         - Schema Expert: Salesforce data model and object design
                         - Technical Architect: Complete technical architecture design  
                         - Dependency Resolver: Implementation planning and task sequencing
                         
-                        Your role is to be the single point of contact while orchestrating
-                        these specialized agents to deliver comprehensive Salesforce solutions.""",
+                        Your role is to be the helpful consultant who delivers solutions, 
+                        not the gatekeeper who asks endless questions.""",
             verbose=True,
             allow_delegation=False,
             memory=True
@@ -165,27 +170,28 @@ class MasterOrchestratorAgent:
         # Create a task for the orchestrator to analyze the requirement
         analysis_task = Task(
             description=f"""
-            Analyze this business requirement and determine the next steps:
+            Analyze this business requirement and be as helpful as possible:
             
             Requirement: {requirement}
             
-            Your analysis should:
-            1. Assess if the requirement is clear enough to proceed with technical design
-            2. Identify any missing critical information needed for implementation
-            3. Determine if clarification is needed or if we can proceed to solution design
+            Your approach should be:
+            1. Assume this is a valid business need that deserves a solution
+            2. Make intelligent assumptions based on industry best practices
+            3. Default to proceeding with solution design unless something is genuinely unclear
+            4. Only ask questions if absolutely critical information is missing
             
-            If clarification is needed, ask specific, focused questions about:
-            - Business objectives and success criteria
-            - User roles and personas involved
-            - Data structures and relationships
-            - Integration requirements
-            - Security and access requirements
+            PREFERRED RESPONSE: "I understand you need [summarize requirement]. Let me create 
+            a comprehensive Salesforce solution for you using industry best practices. I'll 
+            design [specific solution elements] and provide you with a complete implementation plan."
             
-            If the requirement is clear enough, confirm understanding and offer to proceed.
+            ONLY ask clarifying questions if the requirement is genuinely ambiguous or 
+            contradictory. Most business needs can be solved with standard Salesforce patterns.
+            
+            Be helpful, not interrogative. Show solutions, don't ask endless questions.
             
             Provide a conversational response as if speaking directly to the user.
             """,
-            expected_output="A conversational response either asking clarifying questions or confirming readiness to proceed with solution design.",
+            expected_output="A helpful, solution-oriented response that confirms understanding and offers to create a comprehensive Salesforce solution. Default to proceeding with solution design unless the requirement is genuinely unclear or contradictory.",
             agent=self.orchestrator_agent
         )
         
@@ -723,13 +729,29 @@ How would you like to proceed with these modifications?"""
     
     # Helper methods
     def _needs_clarification(self, response: str) -> bool:
-        """Determine if the response indicates need for clarification."""
-        clarification_indicators = [
-            "need more information", "can you clarify", "tell me more about",
-            "what do you mean", "could you elaborate", "I need to understand",
-            "questions about", "clarify", "missing information"
+        """Determine if the response indicates need for clarification.
+        
+        Only return True for genuinely unclear or contradictory requirements.
+        Default to proceeding with solution design.
+        """
+        # Only trigger clarification for genuinely problematic cases
+        critical_clarification_indicators = [
+            "completely unclear", "contradictory requirement", "impossible to determine",
+            "genuinely ambiguous", "cannot proceed without", "critical information missing"
         ]
-        return any(indicator in response.lower() for indicator in clarification_indicators)
+        
+        # Check if response explicitly says it's ready to proceed
+        proceed_indicators = [
+            "let me create", "I'll design", "I'll provide", "comprehensive solution",
+            "implementation plan", "ready to proceed", "move forward"
+        ]
+        
+        # If it says it's ready to proceed, don't ask for clarification
+        if any(indicator in response.lower() for indicator in proceed_indicators):
+            return False
+            
+        # Only ask for clarification in truly critical cases
+        return any(indicator in response.lower() for indicator in critical_clarification_indicators)
     
     def _ready_to_proceed(self, response: str) -> bool:
         """Determine if the response indicates readiness to proceed."""
