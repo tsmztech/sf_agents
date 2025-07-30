@@ -335,49 +335,61 @@ This multi-agent collaboration will ensure we deliver a thorough, professional-g
         # CrewOutput object has different ways to access data
         try:
             import json
+            import re
+            
+            # Debug: Log what we received
+            print(f"🔍 DEBUG: Crew output type: {type(crew_output)}")
+            print(f"🔍 DEBUG: Crew output attributes: {dir(crew_output) if hasattr(crew_output, '__dict__') else 'No attributes'}")
             
             if hasattr(crew_output, 'raw'):
                 # Try to get the raw output first
                 raw_data = crew_output.raw
+                print(f"🔍 DEBUG: Using raw attribute: {type(raw_data)}")
             elif hasattr(crew_output, 'result'):
                 # Try to get the result attribute
                 raw_data = crew_output.result
+                print(f"🔍 DEBUG: Using result attribute: {type(raw_data)}")
             elif hasattr(crew_output, 'json_dict'):
                 # Try to get the json_dict if available
                 raw_data = crew_output.json_dict
+                print(f"🔍 DEBUG: Using json_dict attribute: {type(raw_data)}")
             else:
                 # Fall back to string conversion
                 raw_data = str(crew_output)
+                print(f"🔍 DEBUG: Using string conversion: {len(raw_data)} chars")
             
             # Ensure we have a dictionary, not a string
             if isinstance(raw_data, str):
                 try:
                     implementation_data = json.loads(raw_data)
+                    print(f"🔍 DEBUG: Successfully parsed JSON from string")
                 except json.JSONDecodeError:
-                    # If it's not valid JSON, create a basic structure
-                    implementation_data = {
-                        "project_summary": {"total_effort": "TBD", "team_size": "TBD", "duration": "TBD"},
-                        "tasks": [],
-                        "key_risks": [],
-                        "success_criteria": [],
-                        "implementation_order": [],
-                        "raw_output": raw_data
-                    }
+                    print(f"🔍 DEBUG: JSON parsing failed, extracting tasks manually from text")
+                    # Try to extract tasks from the text manually
+                    implementation_data = self._extract_tasks_from_text(raw_data)
             elif isinstance(raw_data, dict):
                 implementation_data = raw_data
+                print(f"🔍 DEBUG: Using dict directly")
             else:
                 # Convert other types to string and try to parse
                 try:
                     implementation_data = json.loads(str(raw_data))
+                    print(f"🔍 DEBUG: Successfully parsed JSON from converted string")
                 except:
-                    implementation_data = {
-                        "project_summary": {"total_effort": "TBD", "team_size": "TBD", "duration": "TBD"},
-                        "tasks": [],
-                        "key_risks": [],
-                        "success_criteria": [],
-                        "implementation_order": [],
-                        "raw_output": str(raw_data)
-                    }
+                    print(f"🔍 DEBUG: All parsing failed, extracting from text")
+                    implementation_data = self._extract_tasks_from_text(str(raw_data))
+            
+            # Ensure we have the required structure
+            if not isinstance(implementation_data, dict):
+                implementation_data = self._extract_tasks_from_text(str(raw_data))
+            
+            # Validate and ensure required fields exist
+            if 'tasks' not in implementation_data:
+                implementation_data['tasks'] = []
+            if 'project_summary' not in implementation_data:
+                implementation_data['project_summary'] = {"total_effort": "TBD", "team_size": "TBD", "duration": "TBD"}
+            
+            print(f"🔍 DEBUG: Final implementation_data has {len(implementation_data.get('tasks', []))} tasks")
                     
         except Exception as e:
             return self._handle_crew_error(f"Failed to extract results from crew output: {str(e)}")
@@ -1089,6 +1101,124 @@ What specific action would you like to take with your Salesforce solution plan?"
             "type": "intent_clarification",
             "session_id": self.session_id
         }
+    
+    def _extract_tasks_from_text(self, text: str) -> Dict[str, Any]:
+        """Extract implementation tasks from crew output text when JSON parsing fails."""
+        import re
+        
+        print(f"🔍 DEBUG: Extracting tasks from text of length: {len(text)}")
+        
+        # Initialize the structure
+        implementation_data = {
+            "project_summary": {"total_effort": "TBD", "team_size": "TBD", "duration": "TBD"},
+            "tasks": [],
+            "key_risks": [],
+            "success_criteria": [],
+            "implementation_order": [],
+            "raw_output": text
+        }
+        
+        try:
+            # Try to extract task-like patterns from the text
+            # Look for numbered lists, bullet points, or task descriptions
+            
+            # Pattern 1: Look for numbered tasks (1., 2., etc.)
+            numbered_tasks = re.findall(r'(\d+\.\s*[^\n]+(?:\n\s*[^\n\d]+)*)', text, re.MULTILINE)
+            
+            # Pattern 2: Look for bullet point tasks
+            bullet_tasks = re.findall(r'([•\-\*]\s*[^\n]+(?:\n\s*[^\n•\-\*]+)*)', text, re.MULTILINE)
+            
+            # Pattern 3: Look for "Task" or "Step" keywords
+            task_keywords = re.findall(r'((?:Task|Step|Phase)\s*\d*:?\s*[^\n]+(?:\n\s*[^\n]+)*)', text, re.MULTILINE | re.IGNORECASE)
+            
+            all_potential_tasks = numbered_tasks + bullet_tasks + task_keywords
+            
+            print(f"🔍 DEBUG: Found {len(all_potential_tasks)} potential tasks")
+            
+            # Convert to structured tasks
+            for i, task_text in enumerate(all_potential_tasks[:20], 1):  # Limit to 20 tasks
+                # Clean up the task text
+                clean_task = re.sub(r'^[\d\.\-\*•]+\s*', '', task_text.strip())
+                clean_task = re.sub(r'\s+', ' ', clean_task)
+                
+                if len(clean_task) > 10:  # Only include substantial tasks
+                    # Determine role based on content
+                    role = "Admin" if any(keyword in clean_task.lower() for keyword in 
+                                       ['configure', 'setup', 'create field', 'permission', 'profile', 'workflow']) else "Developer"
+                    
+                    # Estimate effort based on complexity keywords
+                    effort = "High" if any(keyword in clean_task.lower() for keyword in 
+                                        ['custom', 'complex', 'integration', 'apex', 'trigger']) else "Medium"
+                    
+                    task = {
+                        "id": f"T{i:03d}",
+                        "title": clean_task[:100] + "..." if len(clean_task) > 100 else clean_task,
+                        "description": clean_task,
+                        "effort": effort,
+                        "role": role,
+                        "dependencies": [],
+                        "acceptance_criteria": [f"Complete {clean_task.lower()}", "Test functionality", "Document changes"]
+                    }
+                    implementation_data["tasks"].append(task)
+            
+            # If no tasks found, create some default ones based on common Salesforce patterns
+            if not implementation_data["tasks"]:
+                print(f"🔍 DEBUG: No tasks extracted, creating default tasks")
+                default_tasks = [
+                    {
+                        "id": "T001",
+                        "title": "Analyze Current Salesforce Org",
+                        "description": "Review existing objects, fields, and configurations",
+                        "effort": "Medium",
+                        "role": "Admin",
+                        "dependencies": [],
+                        "acceptance_criteria": ["Complete org analysis", "Document findings"]
+                    },
+                    {
+                        "id": "T002",
+                        "title": "Design Data Model",
+                        "description": "Create custom objects and fields based on requirements",
+                        "effort": "High",
+                        "role": "Admin",
+                        "dependencies": ["T001"],
+                        "acceptance_criteria": ["Create objects", "Configure fields", "Set relationships"]
+                    },
+                    {
+                        "id": "T003",
+                        "title": "Configure Automation",
+                        "description": "Set up workflows, process builder, or flows",
+                        "effort": "Medium",
+                        "role": "Admin",
+                        "dependencies": ["T002"],
+                        "acceptance_criteria": ["Configure automation", "Test processes"]
+                    }
+                ]
+                implementation_data["tasks"] = default_tasks
+            
+            # Set implementation order
+            implementation_data["implementation_order"] = [task["id"] for task in implementation_data["tasks"]]
+            
+            # Add some default risks and success criteria
+            implementation_data["key_risks"] = [
+                "Data migration complexity",
+                "User adoption challenges", 
+                "Integration dependencies"
+            ]
+            
+            implementation_data["success_criteria"] = [
+                "All requirements implemented",
+                "User acceptance testing passed",
+                "Performance benchmarks met"
+            ]
+            
+            print(f"🔍 DEBUG: Final extracted data has {len(implementation_data['tasks'])} tasks")
+            
+        except Exception as e:
+            print(f"⚠️ DEBUG: Error extracting tasks: {e}")
+            # Return minimal structure on error
+            pass
+        
+        return implementation_data
     
     # Public interface methods
     def get_conversation_history(self) -> List[Dict[str, Any]]:

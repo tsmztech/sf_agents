@@ -1,13 +1,12 @@
 {
   "objects_to_create": [
     {
-      "api_name": "Employee__c",
-      "label": "Employee",
+      "api_name": "Goal__c",
+      "label": "Goal",
       "key_fields": [
-        "Employee_Name__c",
-        "Email__c",
-        "Hire_Date__c",
-        "Phone_Number__c"
+        "Goal_Description__c",
+        "Target_Date__c",
+        "Status__c"
       ],
       "sharing_model": "Private"
     }
@@ -15,9 +14,9 @@
   "automation_needed": [
     {
       "type": "Flow",
-      "name": "Email_Unique_Validation_Flow",
-      "purpose": "Ensure the Email field is unique and alerts if a duplicate is being created.",
-      "trigger": "Before Insert and Before Update on Employee__c"
+      "name": "GoalCreationFlow",
+      "purpose": "Manage the creation and updates of Goal records and validate fields.",
+      "trigger": "Runs when a Goal record is created or updated."
     }
   ],
   "security_settings": [
@@ -26,15 +25,14 @@
       "permissions": [
         "Read",
         "Create",
-        "Edit",
-        "Delete"
+        "Edit"
       ]
     }
   ],
   "ui_components": [
     {
       "type": "Page Layout",
-      "description": "Employee Page Layout displaying Employee Name, Email, Hire Date, and Phone Number fields."
+      "description": "Configure the Goal page layout to include 'Goal Description', 'Target Date', and 'Status' fields with appropriate sections for visibility."
     }
   ]
 }
