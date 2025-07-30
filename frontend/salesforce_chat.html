@@ -1374,7 +1374,10 @@
             updateConnectionStatus(false, 'Connecting...');
             
             try {
-                ws = new WebSocket(`ws://localhost:8000/ws/${sessionId}`);
+                // Use current host for WebSocket connection (works for both localhost and network access)
+                const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const wsHost = window.location.host;
+                ws = new WebSocket(`${wsProtocol}//${wsHost}/ws/${sessionId}`);
                 
                 ws.onopen = function(event) {
                     updateConnectionStatus(true, 'Connected');
