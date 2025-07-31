@@ -14,25 +14,23 @@
   "automation_needed": [
     {
       "type": "Flow",
-      "name": "GoalCreationFlow",
-      "purpose": "Manage the creation and updates of Goal records and validate fields.",
-      "trigger": "Runs when a Goal record is created or updated."
+      "name": "Goal_Creation_And_Update",
+      "purpose": "Manage the creation and updates of Goal records, ensuring mandatory fields are validated.",
+      "trigger": "When a Goal record is created or updated"
     }
   ],
   "security_settings": [
     {
       "component": "Profile",
       "permissions": [
-        "Read",
-        "Create",
-        "Edit"
+        "Read, Create, Edit on Goal__c"
       ]
     }
   ],
   "ui_components": [
     {
       "type": "Page Layout",
-      "description": "Configure the Goal page layout to include 'Goal Description', 'Target Date', and 'Status' fields with appropriate sections for visibility."
+      "description": "Custom page layout for Goal__c to display essential fields and related Contact information, enabling easy data entry and visibility."
     }
   ]
 }

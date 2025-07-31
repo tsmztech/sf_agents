@@ -36,6 +36,6 @@
   "implementation_notes": [
     "Implement a lookup relationship from the Goal object to the Contact object to associate each goal with a contact.",
     "Add validation rules to ensure that the goal description and target date are filled out.",
-    "Consider creating appropriate reports to track goals by different contacts."
+    "Consider creating standard reports to track and review goals associated with contacts."
   ]
 }

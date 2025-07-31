@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>⚡ Salesforce AI Agent System</title>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
         * {
@@ -506,8 +509,9 @@
             margin-bottom: 8px;
             padding: 6px 8px;
             border-radius: 4px;
-            background: rgba(255,255,255,0.05);
+            background: rgba(255,255,255,0.8);  /* Much more visible */
             border-left: 3px solid #4a5568;
+            color: #2d3748;  /* Dark text for readability */
         }
         
         .log-entry.INFO {
@@ -873,7 +877,7 @@
         <!-- Right Logs Panel -->
         <div class="logs-panel">
             <div class="logs-header">
-                📝 Real-time Logs
+                📝 Real-time Logs <span style="color: #ff6b6b; font-size: 10px;">[DEBUG v2.0]</span>
             </div>
             <div class="logs-content" id="logsContent">
                 <div class="log-entry INFO">
@@ -1343,8 +1347,17 @@
         }
 
         function addLogEntry(logData) {
+            console.log('🔍 DEBUG: addLogEntry called with:', logData);
             const logsContent = document.getElementById('logsContent');
+            console.log('🔍 DEBUG: logsContent element:', logsContent);
+            
+            if (!logsContent) {
+                console.error('❌ ERROR: logsContent element not found!');
+                return;
+            }
+            
             const logDiv = document.createElement('div');
+            console.log('🔍 DEBUG: Created logDiv:', logDiv);
             
             // Simple styling - no category classes, just raw display
             logDiv.className = `log-entry ${logData.level || 'INFO'}`;
@@ -1362,12 +1375,15 @@
             `;
             
             logsContent.appendChild(logDiv);
+            console.log('🔍 DEBUG: Appended logDiv to DOM. Total children:', logsContent.children.length);
             logsContent.scrollTop = logsContent.scrollHeight;
             
             // Keep only last 50 log entries for agent activities
             while (logsContent.children.length > 50) {
                 logsContent.removeChild(logsContent.firstChild);
             }
+            
+            console.log('🔍 DEBUG: Final children count:', logsContent.children.length);
         }
 
         function connect() {
@@ -1416,6 +1432,7 @@
                             break;
                             
                         case 'log':
+                            console.log('🔍 DEBUG: Received log message:', data.data);
                             addLogEntry(data.data);
                             break;
                             
@@ -1471,6 +1488,10 @@
             input.value = '';
         }
 
+        // Test debug logging on page load
+        console.log('🔍 DEBUG: JavaScript loaded successfully - v2.0');
+        console.log('🔍 DEBUG: logsContent element on load:', document.getElementById('logsContent'));
+        
         // Enter key to send message
         document.getElementById('messageInput').addEventListener('keypress', function(e) {
             if (e.key === 'Enter' && !e.shiftKey) {

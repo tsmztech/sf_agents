@@ -44,11 +44,10 @@ class ConsoleCapture:
         if args:
             text = str(args[0])
             if self._is_crewai_content(text):
-                # Send to UI asynchronously
+                # Send to UI using logging system
                 try:
-                    loop = asyncio.get_event_loop()
-                    if loop.is_running():
-                        loop.create_task(self._send_to_ui(text))
+                    console_logger = logging.getLogger('CrewAI.Console')
+                    console_logger.info(text)
                 except:
                     pass
         
@@ -63,22 +62,7 @@ class ConsoleCapture:
         ]
         return any(indicator in text for indicator in crewai_indicators)
     
-    async def _send_to_ui(self, text):
-        """Send captured output to UI"""
-        try:
-            if self.connection_manager:
-                log_entry = {
-                    'timestamp': datetime.now().isoformat(),
-                    'level': 'INFO',
-                    'logger': 'CrewAI.Console',
-                    'message': text.strip(),
-                    'module': 'console',
-                    'funcName': 'output',
-                    'lineno': 0
-                }
-                await self.connection_manager.broadcast_log(log_entry)
-        except Exception as e:
-            pass  # Don't break on logging errors
+
 
 def setup_console_capture(connection_manager):
     """Setup console output capture"""
@@ -103,10 +87,15 @@ class CrewAIOutputCapture:
         self.original_stdout.write(text)
         self.original_stdout.flush()
         
-        # Capture for UI if it contains CrewAI content
-        if self._is_crewai_content(text):
-            # Send to UI in real-time
-            asyncio.create_task(self._send_to_ui(text))
+        # Send ALL terminal output to UI using the existing logging system
+        if text.strip():  # Only send non-empty lines
+            try:
+                # Use the existing logging system which already works
+                terminal_logger = logging.getLogger('Terminal')
+                terminal_logger.info(text.strip())
+            except Exception as e:
+                # If fails, just continue (don't break terminal output)
+                pass
         
         return len(text)
     
@@ -142,33 +131,7 @@ class CrewAIOutputCapture:
         ]
         return any(indicator in text for indicator in crewai_indicators)
     
-    async def _send_to_ui(self, text):
-        """Send CrewAI content to UI via WebSocket"""
-        try:
-            log_entry = {
-                'timestamp': datetime.now().isoformat(),
-                'level': 'INFO',
-                'logger': 'CrewAI.Console',
-                'message': text.strip(),
-                'module': 'crewai',
-                'funcName': 'console_output',
-                'lineno': 0
-            }
-            
-            message = {
-                'type': 'log',
-                'data': log_entry,
-                'timestamp': datetime.now().isoformat()
-            }
-            
-            # Send to all active connections
-            for session_id in list(self.connection_manager.active_connections.keys()):
-                try:
-                    await self.connection_manager.send_message(session_id, message)
-                except Exception as e:
-                    logger.error(f"Failed to send CrewAI output to {session_id}: {e}")
-        except Exception as e:
-            logger.error(f"Error sending CrewAI output to UI: {e}")
+
 
 class WebSocketLogHandler(logging.Handler):
     """Custom log handler that streams logs to WebSocket clients in real-time"""
@@ -291,7 +254,8 @@ class ConnectionManager:
         loggers_to_monitor = [
             'crewai', 'agents', 'CrewExecutor', 'LiteLLM', 'crew',
             'agents.master_orchestrator_agent', 'agents.unified_agent_system',
-            'SalesforceImpl', 'SalesforceImplementationCrew'
+            'SalesforceImpl', 'SalesforceImplementationCrew',
+            'Terminal', 'CrewAI.Console', 'fastapi_app'
         ]
         
         for logger_name in loggers_to_monitor:
@@ -303,9 +267,9 @@ class ConnectionManager:
         root_logger = logging.getLogger()
         root_logger.addHandler(self.log_handler)
         
-        # REMOVE STDOUT CAPTURE - it was causing async issues
-        # self.stdout_capture = CrewAIOutputCapture(self)
-        # sys.stdout = self.stdout_capture
+        # Enable stdout capture to get terminal logs
+        self.stdout_capture = CrewAIOutputCapture(self)
+        sys.stdout = self.stdout_capture
         
         logger.info("Real-time logging activated - showing ALL logs for debugging")
     
